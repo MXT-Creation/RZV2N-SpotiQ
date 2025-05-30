@@ -1,0 +1,31 @@
+From 96339feccb5278d94638795be3807f0cfd084add Mon Sep 17 00:00:00 2001
+From: Nhat Thieu <nhat.thieu.xr@renesas.com>
+Date: Tue, 27 Feb 2024 18:47:51 +0700
+Subject: [PATCH 4/4] Fix kernel warning of irq names
+
+Signed-off-by: Nhat Thieu <nhat.thieu.xr@renesas.com>
+---
+ drivers/gpu/arm/midgard/mali_kbase_core_linux.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/arm/midgard/mali_kbase_core_linux.c b/drivers/gpu/arm/midgard/mali_kbase_core_linux.c
+index 31d7d81..2a56b15 100644
+--- a/drivers/gpu/arm/midgard/mali_kbase_core_linux.c
++++ b/drivers/gpu/arm/midgard/mali_kbase_core_linux.c
+@@ -554,11 +554,11 @@ static int get_irqs(struct kbase_device *kbdev, struct platform_device *pdev)
+ 		 * first then try using Lower case names. If both attempts fail then
+ 		 * we assume there is no IRQ resource specified for the GPU.
+ 		 */
+-		irq = platform_get_irq_byname(pdev, irq_names_caps[i]);
++		irq = platform_get_irq_byname_optional(pdev, irq_names_caps[i]);
+ 		if (irq < 0) {
+ 			static const char *const irq_names[] = { "job", "mmu", "gpu" };
+ 
+-			irq = platform_get_irq_byname(pdev, irq_names[i]);
++			irq = platform_get_irq_byname_optional(pdev, irq_names[i]);
+ 		}
+ 
+ 		if (irq < 0)
+-- 
+2.25.1
+

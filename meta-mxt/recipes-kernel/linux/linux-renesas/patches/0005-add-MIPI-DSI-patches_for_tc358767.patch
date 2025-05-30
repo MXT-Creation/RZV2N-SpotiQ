@@ -1,0 +1,79 @@
+diff --git a/drivers/gpu/drm/rcar-du/rzg2l_mipi_dsi.c b/drivers/gpu/drm/rcar-du/rzg2l_mipi_dsi.c
+index 52bbd7d08449..32dc6f0f00fc 100644
+--- a/drivers/gpu/drm/rcar-du/rzg2l_mipi_dsi.c
++++ b/drivers/gpu/drm/rcar-du/rzg2l_mipi_dsi.c
+@@ -625,6 +625,11 @@ static void rzg2l_mipi_dsi_dphy_init(struct rzg2l_mipi_dsi *mipi_dsi)
+ 		dev_info(mipi_dsi->dev,
+ 			 "hsfreq: %lu pll_k: %hd, pll_m: %d, pll_p: %d, pll_s: %d\n",
+ 			 hsfreq, pll_k, pll_m, pll_p, pll_s);
++			 
++		pll_k = -32768;
++		pll_m = 111;
++		pll_p = 3;
++		pll_s = 0;
+ 
+ 		rzg2l_mipi_dsi_write(mipi_dsi->phy_mmio,
+ 				     PLLCLKSET0R,
+@@ -643,6 +648,51 @@ static void rzg2l_mipi_dsi_dphy_init(struct rzg2l_mipi_dsi *mipi_dsi)
+ 	}
+ };
+ 
++static int rzg2l_mipi_dsi_lp11(struct rzg2l_mipi_dsi *mipi_dsi)
++{
++	struct drm_display_mode *mode = &mipi_dsi->display_mode;
++	u32 txsetr;
++	u32 clstptsetr;
++	u32 lptrnstsetr;
++	u8 max_num_lanes;
++	u32 clkkpt;
++	u32 clkbfht;
++	u32 clkstpt;
++	u32 golpbkt;
++	unsigned int bpp;
++	
++	dev_info(mipi_dsi->dev, "dsi startup in lp11 \n");
++
++	/* Relationship between hsclk and vclk must follow:
++	 * vclk * bpp = hsclk * 8 * lanes
++	 * where vclk: video clock (Hz)
++	 *       bpp: video pixel bit depth
++	 *       hsclk: DSI HS Byte clock frequency (Hz)
++	 *       lanes: number of data lanes
++	 *
++	 * hsclk(bit) = hsclk(byte) * 8
++	 */
++
++	bpp = mipi_dsi_pixel_format_to_bpp(mipi_dsi->format);
++	dev_info(mipi_dsi->dev, "clock %d, bpp %d, lanes %d\n", mode->clock, bpp, mipi_dsi->lanes);
++	mipi_dsi->hsfreq = (mode->clock * bpp * 8) / (8 * mipi_dsi->lanes);
++
++	/* Initializing DPHY before accessing LINK */
++	rzg2l_mipi_dsi_dphy_init(mipi_dsi);
++
++	/* Enable Data lanes and Clock lanes */
++	txsetr = TXSETR_DLEN | TXSETR_NUMLANEUSE(mipi_dsi->lanes - 1) | TXSETR_CLEN;
++	rzg2l_mipi_dsi_write(mipi_dsi->link_mmio, TXSETR, txsetr);
++
++	if (mipi_dsi->type == MIPI_DSI_DPHY_RZ_V2H) {
++		udelay(250);
++		rzg2l_mipi_dsi_write(mipi_dsi->phy_mmio, PHYRSTR,
++				     PHYRSTR_PHYMRSTN);
++	}
++
++	return 0;
++}
++
+ static int rzg2l_mipi_dsi_startup(struct rzg2l_mipi_dsi *mipi_dsi)
+ {
+ 	struct drm_display_mode *mode = &mipi_dsi->display_mode;
+@@ -1048,6 +1098,10 @@ static int rzg2l_mipi_dsi_attach(struct drm_bridge *bridge,
+ 	ret = rzg2l_mipi_dsi_find_panel_or_bridge(mipi_dsi);
+ 	if (ret < 0)
+ 		return ret;
++		
++	ret = rzg2l_mipi_dsi_startup(mipi_dsi);
++	if (ret < 0)
++		return ret;
+ 
+ 	/* If we have a next bridge just attach it. */
+ 	if (mipi_dsi->next_bridge)

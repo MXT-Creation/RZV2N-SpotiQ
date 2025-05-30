@@ -1,0 +1,40 @@
+From b049d5e32269975155f07d3e4ad8d8c823ce3f85 Mon Sep 17 00:00:00 2001
+From: Sang Ngo <sang.ngo.yf@renesas.com>
+Date: Wed, 24 Apr 2024 10:50:55 +0700
+Subject: [PATCH] omxvideodec: don't drop frame if it contains header data
+
+handle_frame() will drop frame until a sync point is found.
+It is not wrong because frame cannot be decoded properly without
+a sync point (I frame).
+However, if the frame with header data (SPS, PPS) is discarded
+completely and never appear again, video cannot be decoded at all.
+
+Avoid this issue by not dropping header data frame.
+Note that this only change the behaviour with video which have late
+sync point.
+Before this change, video cannot be decoded.
+After this change, video can be decoded, but some early frames
+before sync points can be decoded wrongly.
+
+Signed-off-by: Hung Tran <hung.tran.jy@renesas.com>
+---
+ omx/gstomxvideodec.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/omx/gstomxvideodec.c b/omx/gstomxvideodec.c
+index ec3a1c3..a09de18 100644
+--- a/omx/gstomxvideodec.c
++++ b/omx/gstomxvideodec.c
+@@ -3083,7 +3083,8 @@ gst_omx_video_dec_handle_frame (GstVideoDecoder * decoder,
+   }
+ 
+   if (!self->started) {
+-    if (!GST_VIDEO_CODEC_FRAME_IS_SYNC_POINT (frame)) {
++    if (!GST_VIDEO_CODEC_FRAME_IS_SYNC_POINT (frame) &&
++        !GST_BUFFER_FLAG_IS_SET (frame->input_buffer, GST_BUFFER_FLAG_HEADER)) {
+       gst_video_decoder_drop_frame (GST_VIDEO_DECODER (self), frame);
+       return GST_FLOW_OK;
+     }
+-- 
+2.17.1
+

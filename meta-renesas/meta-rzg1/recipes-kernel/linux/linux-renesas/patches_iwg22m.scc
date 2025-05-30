@@ -1,0 +1,2 @@
+patch patches/0001-ARM-dts-r8a7745-iwg22m-sodimm-Fix-issue-no-detecting-.patch
+patch patches/0002-mmc-core-sd-Fix-issue-g1e-sdcard-cant-probe-.patch

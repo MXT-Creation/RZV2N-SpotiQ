@@ -1,0 +1,12 @@
+# These patches should be applied exclusively for G1 devices
+patch patches/0001-ARM-dts-r8a77470-Support-VSP-control-by-DU.patch
+patch patches/0002-rzg1-rcar_du_crtc-Fix-build-on-64bit-division.patch
+patch patches/0003-watchdog-renesas-wdt-Fix-issue-kernel-warning-when-reboot.patch
+patch patches/0004-ARM-dts-iwg23s-sbc-Disable-usb2_phy1-to-workaround-.patch
+patch patches/0005-pinctrl-renesas-r8a77470-Rotate-VIN0-B-and-VIN0-G-pins.patch
+patch patches/0006-ARM-dts-r8a7742-Fix-DU-cannot-be-probed.patch
+patch patches/0007-ARM-dts-r8a7742-Correct-vpc1-unit-name.patch
+patch patches/0008-dma-swiotlb-IO-TLB-cannot-alloc-default-64MB-on-G1M.patch
+patch patches/0009-arm-dts-Add-touch-panel-edt-ft5406-for-RZ-G1H.patch
+patch patches/0010-arm-dts-Fix-hang-on-starting-kernel-when-booting-RZ-.patch
+patch patches/0011-mtd-spi-nor-fix-spi-flash-cannot-sst-write-correctly.patch

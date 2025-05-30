@@ -1,0 +1,29 @@
+From 8ed66d99766f7199a29fa9deb1f9c2add0cc709e Mon Sep 17 00:00:00 2001
+From: Hung Tran <hung.tran.jy@renesas.com>
+Date: Thu, 21 Sep 2023 12:14:44 +0000
+Subject: [PATCH] Change VTOP ioctl number to match with other platforms
+
+Other platforms such as RZ/G2 currenlty use different value for this ioctl.
+Change to unify value so that vspmfilter can use.
+
+Signed-off-by: Hung Tran <hung.tran.jy@renesas.com>
+---
+ include/mmngr_private.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/include/mmngr_private.h b/include/mmngr_private.h
+index ee68b2c..0006bd9 100644
+--- a/include/mmngr_private.h
++++ b/include/mmngr_private.h
+@@ -95,7 +95,7 @@ struct BM {
+ #define MM_IOC_ALLOC_CO	_IOWR(MM_IOC_MAGIC, 4, struct MM_PARAM)
+ #define MM_IOC_FREE_CO	_IOWR(MM_IOC_MAGIC, 5, struct MM_PARAM)
+ #define MM_IOC_SHARE	_IOWR(MM_IOC_MAGIC, 6, struct MM_PARAM)
+-#define MM_IOC_VTOP	_IOWR(MM_IOC_MAGIC, 7, struct MM_PARAM)     /* virt to phys */
++#define MM_IOC_VTOP	_IOWR(MM_IOC_MAGIC, 9, struct MM_PARAM)     /* virt to phys */
+ 
+ #define DEVNAME		"rgnmm"
+ #define DRVNAME		DEVNAME
+-- 
+2.25.1
+

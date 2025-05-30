@@ -1,0 +1,54 @@
+From dca235c35745e2fc1f183c01a3e3df39223ff861 Mon Sep 17 00:00:00 2001
+From: Hung Thanh Huynh <hung.huynh.wz@renesas.com>
+Date: Thu, 19 Oct 2023 14:43:13 +0900
+Subject: [PATCH 16/17] videoenc: Update data layout for input data
+
+Currently, the data layout will follow nStride and nSliceHeight specification.
+Also nStride only need to be aligned with 128.
+
+Signed-off-by: Hung Thanh Huynh <hung.huynh.wz@renesas.com>
+---
+ omx/gstomxvideoenc.c | 10 +---------
+ 1 file changed, 1 insertion(+), 9 deletions(-)
+
+diff --git a/omx/gstomxvideoenc.c b/omx/gstomxvideoenc.c
+index f14e729..3a47584 100644
+--- a/omx/gstomxvideoenc.c
++++ b/omx/gstomxvideoenc.c
+@@ -2002,7 +2002,7 @@ gst_omx_video_enc_update_input_port (GstOMXVideoEnc * self,
+           break;
+         case OMX_COLOR_FormatYUV420SemiPlanar:
+ #ifdef USE_TARGET_DEVICE_RZV2H
+-          port_def.format.video.nStride = gst_omx_video_round_power (stride, 2);
++          port_def.format.video.nStride = GST_ROUND_UP_N (stride, 128);
+ #else
+           port_def.format.video.nStride = GST_ROUND_UP_32 (stride);
+ #endif
+@@ -2814,11 +2814,7 @@ gst_omx_video_enc_semi_planar_manual_copy (GstOMXVideoEnc * self,
+     GST_ERROR_OBJECT (self, "Invalid input buffer size");
+     return FALSE;
+   }
+-#ifdef USE_TARGET_DEVICE_RZV2H
+-  dest_stride = GST_ROUND_UP_128 (port_def->format.video.nFrameWidth);
+-#else
+   dest_stride = port_def->format.video.nStride;
+-#endif
+ 
+   for (i = 0; i < 2; i++) {
+     src_stride = GST_VIDEO_FRAME_COMP_STRIDE (&frame, i);
+@@ -2828,12 +2824,8 @@ gst_omx_video_enc_semi_planar_manual_copy (GstOMXVideoEnc * self,
+ 
+     dest = outbuf->omx_buf->pBuffer + outbuf->omx_buf->nOffset;
+     if (i == 1)
+-#ifdef USE_TARGET_DEVICE_RZV2H
+-      dest += height * dest_stride;
+-#else
+       dest +=
+           port_def->format.video.nSliceHeight * port_def->format.video.nStride;
+-#endif
+ 
+     src = GST_VIDEO_FRAME_COMP_DATA (&frame, i);
+     height = GST_VIDEO_FRAME_COMP_HEIGHT (&frame, i);
+-- 
+2.25.1
+

@@ -1,0 +1,43 @@
+From cfbd54433a7ef3ebc82b8a57e98236556b8255c4 Mon Sep 17 00:00:00 2001
+From: Hung Thanh Huynh <hung.huynh.wz@renesas.com>
+Date: Thu, 5 Oct 2023 14:27:05 +0900
+Subject: [PATCH 12/17] videodec: Update decode outport defination for RZ/V2H
+
+RZ/V2H need the nStride is aligned to 16, and nSliceHeight is aligned to 8.
+
+When the nStride and nSliceHeight are updated, we need to update
+the nBufferSize to match with defination.
+
+Signed-off-by: Hung Thanh Huynh <hung.huynh.wz@renesas.com>
+---
+ omx/gstomxvideodec.c | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/omx/gstomxvideodec.c b/omx/gstomxvideodec.c
+index 08a26fd..b036273 100644
+--- a/omx/gstomxvideodec.c
++++ b/omx/gstomxvideodec.c
+@@ -3071,8 +3071,20 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
+          * so application has to set parameters for output port manually */
+         out_port_def.format.video.nFrameWidth =  info->width;
+         out_port_def.format.video.nFrameHeight =  info->height;
++#ifdef USE_TARGET_DEVICE_RZV2H
++        /* Currently RZ/V2H Bypass mode, we need the nStride is power of 2,
++           nSliceHeight is aligned to 64 */
++        out_port_def.format.video.nStride =
++            gst_omx_video_round_power (info->width, 2);
++        out_port_def.format.video.nSliceHeight =
++            GST_ROUND_UP_N (info->height , 64);
++#else
+         out_port_def.format.video.nStride = (info->width+127)/128*128;
+         out_port_def.format.video.nSliceHeight = (info->height+15)/16*16;
++#endif
++        out_port_def.nBufferSize =
++            (out_port_def.format.video.nStride *
++            out_port_def.format.video.nSliceHeight * 3 / 2);
+       }
+     }
+ 
+-- 
+2.25.1
+

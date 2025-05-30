@@ -1,0 +1,33 @@
+From 71465ced98e66702fff799d0152f786b83c47297 Mon Sep 17 00:00:00 2001
+From: duytruong <duy.truong.yw@renesas.com>
+Date: Wed, 24 Jul 2024 16:50:21 +0700
+Subject: [PATCH] omx: gstomxh265enc: Correct omxh265enc option interval_intraframes flow
+
+In the the old flow no mater how we set interval_intraframes, it just go to default if 
+use alone. In new flow  we can set interval_intraframes individually without using 
+periodicity-idr to go with it.
+
+Signed-off-by: duytruong <duy.truong.yw@renesas.com>
+---
+ gstomxh265enc.c | 5 +----
+ 1 file changed, 1 insertion(+), 4 deletions(-)
+
+diff --git a/omx/gstomxh265enc.c b/omx/gstomxh265enc.c
+index 6e6a81f..95b5e66 100644
+--- a/omx/gstomxh265enc.c
++++ b/omx/gstomxh265enc.c
+@@ -396,10 +396,7 @@ update_param_hevc (GstOMXH265Enc * self,
+ #endif
+ 
+   /* GOP pattern */
+-#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+-  /* The zynqultrascaleplus uses another PARAM_HEVCTYPE API allowing users to
+-   * define the number of P and B frames while Android's API only expose the
+-   * former. */
++#ifdef USE_OMX_TARGET_RCAR
+   if (self->interval_intraframes !=
+       GST_OMX_H265_VIDEO_ENC_INTERVAL_OF_CODING_INTRA_FRAMES_DEFAULT) {
+     param.nPFrames = self->interval_intraframes;
+-- 
+2.17.1
+

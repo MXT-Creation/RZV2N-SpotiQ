@@ -1,0 +1,10 @@
+diff --git a/conf/local.conf b/conf/local.conf
+index c98ac18..5abfb26 100644
+--- a/conf/local.conf
++++ b/conf/local.conf
+@@ -338,3 +338,5 @@ IMAGE_ROOTFS_EXTRA_SPACE = "8388608"
+ #SPDX_ARCHIVE_PACKAGED = "1"
+ 
+ IMAGE_INSTALL_append = " tesseract tesseract-lang "
++
++CORE_IMAGE_EXTRA_INSTALL += "libgomp libgomp-dev libgomp-staticdev"

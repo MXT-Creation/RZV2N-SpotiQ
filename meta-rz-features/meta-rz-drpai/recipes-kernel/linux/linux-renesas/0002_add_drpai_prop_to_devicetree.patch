@@ -1,0 +1,53 @@
+diff --git a/arch/arm64/boot/dts/renesas/r9a09g056.dtsi b/arch/arm64/boot/dts/renesas/r9a09g056.dtsi
+index de82879..72ad559 100644
+--- a/arch/arm64/boot/dts/renesas/r9a09g056.dtsi
++++ b/arch/arm64/boot/dts/renesas/r9a09g056.dtsi
+@@ -2154,6 +2154,18 @@
+ 				};
+ 			};
+ 		};
++
++		drpai0: drpai@16800000 {
++			compatible = "renesas,rzv2n-drpai";
++			reg = <0 0x17000000 0 0x1000000>,
++			<0 0x16800000 0 0x400000>;
++			interrupts = <GIC_SPI 914 IRQ_TYPE_LEVEL_HIGH>,
++				<GIC_SPI 915 IRQ_TYPE_LEVEL_HIGH>,
++				<GIC_SPI 916 IRQ_TYPE_LEVEL_HIGH>,
++				<GIC_SPI 917 IRQ_TYPE_LEVEL_HIGH>;
++			resets = <&cpg R9A09G056_DRPAI_ARESETN>;
++			status = "disabled";
++		};
+ 	};
+ 
+ 	thermal-zones {
+diff --git a/arch/arm64/boot/dts/renesas/r9a09g056n44-dev.dts b/arch/arm64/boot/dts/renesas/r9a09g056n44-dev.dts
+index 20283ca..f1e23b5 100644
+--- a/arch/arm64/boot/dts/renesas/r9a09g056n44-dev.dts
++++ b/arch/arm64/boot/dts/renesas/r9a09g056n44-dev.dts
+@@ -773,3 +773,10 @@
+ 	pinctrl-names = "default";
+ 	status ="okay";
+ };
++
++&drpai0 {
++	memory-region = <&drp_reserved>;
++	image-memory-region = <&image_buf0>;
++	memory-shared-for-drpai-ext-cont = <&shared_drp_reserved>;
++	status = "okay";
++};
+diff --git a/arch/arm64/boot/dts/renesas/r9a09g056n44-evk.dts b/arch/arm64/boot/dts/renesas/r9a09g056n44-evk.dts
+index 8f8731b..41ba83a 100644
+--- a/arch/arm64/boot/dts/renesas/r9a09g056n44-evk.dts
++++ b/arch/arm64/boot/dts/renesas/r9a09g056n44-evk.dts
+@@ -1043,3 +1043,10 @@
+ &ssi4 {
+ 	shared-pin;
+ };
++
++&drpai0 {
++	memory-region = <&drp_reserved>;
++	image-memory-region = <&image_buf0>;
++	memory-shared-for-drpai-ext-cont = <&shared_drp_reserved>;
++	status = "okay";
++};

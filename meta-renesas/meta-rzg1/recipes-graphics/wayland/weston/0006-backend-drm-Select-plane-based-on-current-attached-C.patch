@@ -1,0 +1,64 @@
+From 26198d521b928242d30875b2ed01f6395844ca0e Mon Sep 17 00:00:00 2001
+From: Hao Bui <hao.bui.yg@renesas.com>
+Date: Fri, 4 Aug 2023 18:36:02 +0700
+Subject: [PATCH] backend-drm: Select plane based on current attached CRTC
+
+When doing plane selection for an output CRTC check if the plane
+already has a CRTC attached and if so prefer that plane only for
+the corresponding CRTC.
+
+This prevents changing a CRTC's primary plane when it is active
+which is not allowed by the DRM framework.
+
+This is based on commit 94afcbcdc3f1b1cfc050da242c9c70009b007fc6
+from https://gitlab.freedesktop.org/wayland/weston
+
+Based-on-patch-by: Eric Ruei's avatarEric Ruei <e-ruei1@ti.com>
+Signed-off-by: Andrew Davis's avatarAndrew F. Davis <afd@ti.com>
+Signed-off-by: Hao Bui <hao.bui.yg@renesas.com>
+---
+ libweston/backend-drm/drm-internal.h | 1 +
+ libweston/backend-drm/drm.c          | 9 +++++++++
+ 2 files changed, 10 insertions(+)
+
+diff --git a/libweston/backend-drm/drm-internal.h b/libweston/backend-drm/drm-internal.h
+index 2384a9a..2b7d847 100644
+--- a/libweston/backend-drm/drm-internal.h
++++ b/libweston/backend-drm/drm-internal.h
+@@ -439,6 +439,7 @@ struct drm_plane {
+ 	uint32_t possible_crtcs;
+ 	uint32_t plane_id;
+ 	uint32_t count_formats;
++	uint32_t crtc_id;
+ 
+ 	struct drm_property_info props[WDRM_PLANE__COUNT];
+ 
+diff --git a/libweston/backend-drm/drm.c b/libweston/backend-drm/drm.c
+index e0b1cbd..8d7c62c 100644
+--- a/libweston/backend-drm/drm.c
++++ b/libweston/backend-drm/drm.c
+@@ -753,6 +753,7 @@ drm_plane_create(struct drm_backend *b, const drmModePlane *kplane,
+ 	if (kplane) {
+ 		plane->possible_crtcs = kplane->possible_crtcs;
+ 		plane->plane_id = kplane->plane_id;
++		plane->crtc_id = kplane->crtc_id;
+ 
+ 		props = drmModeObjectGetProperties(b->drm.fd, kplane->plane_id,
+ 						   DRM_MODE_OBJECT_PLANE);
+@@ -898,6 +899,14 @@ drm_output_find_special_plane(struct drm_backend *b, struct drm_output *output,
+ 		if (found_elsewhere)
+ 			continue;
+ 
++		/* If a plane already has a CRTC selected and it is not our
++		 * output's CRTC, then do not select this plane. We cannot
++		 * switch away a plane from a CTRC when active. */
++		if ((type == WDRM_PLANE_TYPE_PRIMARY) &&
++		    (plane->crtc_id != 0) &&
++		    (plane->crtc_id != output->crtc_id))
++			continue;
++
+ 		plane->possible_crtcs = (1 << output->pipe);
+ 		return plane;
+ 	}
+-- 
+2.7.4

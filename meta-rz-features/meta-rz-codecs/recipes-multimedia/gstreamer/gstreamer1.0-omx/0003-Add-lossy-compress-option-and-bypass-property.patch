@@ -1,0 +1,91 @@
+From 57c38d1e4cbec3c4616b42cf425c4d8cb4ef5336 Mon Sep 17 00:00:00 2001
+From: Nhat Thieu <nhat.thieu.xr@renesas.com>
+Date: Thu, 21 Jul 2022 18:05:30 +0700
+Subject: [PATCH 3/3] Add lossy compress option
+
+Lossy compress option: suppporting customer on/off lossy conpress property.
+
+Signed-off-by: Nhat Thieu <nhat.thieu.xr@renesas.com>
+---
+ meson.build          | 12 ++++++++++++
+ meson_options.txt    |  2 ++
+ omx/gstomxvideodec.c |  4 ++++
+ 3 files changed, 18 insertions(+)
+
+diff --git a/meson.build b/meson.build
+index c48c19a..c6ca601 100644
+--- a/meson.build
++++ b/meson.build
+@@ -170,6 +170,11 @@ else
+   omx_inc = include_directories (join_paths ('omx', 'openmax'))
+ endif
+ 
++lossy_compress = get_option('with_lossy_compress')
++if  lossy_compress == 1
++   cdata.set('HAVE_LOSSY_COMPRESS', 1)
++endif
++
+ default_omx_struct_packing = 0
+ omx_target = get_option ('target')
+ if omx_target == 'generic'
+@@ -239,6 +244,13 @@ elif omx_target == 'rcar'
+     cdata.set ('HAVE_VP8ENC_EXT', 1)
+   endif
+ 
++  # check OMXR_Extension_vp8e.h
++  if cc.has_header (
++    'OMXR_Extension_vdcmn.h',
++    args : gst_omx_args)
++    cdata.set ('HAVE_VIDEODEC_EXT', 1)
++  endif
++
+   # check OMXR_Extension_aapd.h
+   if cc.has_header (
+       'OMXR_Extension_aapd.h',
+diff --git a/meson_options.txt b/meson_options.txt
+index 0afb142..3716507 100644
+--- a/meson_options.txt
++++ b/meson_options.txt
+@@ -1,5 +1,7 @@
+ option('header_path', type : 'string', value : '',
+     description : 'An extra include directory to find the OpenMax headers')
++option('with_lossy_compress', type : 'boolean', value : false,
++    description : 'Whether or not to support lossy compress property')
+ option('target', type : 'combo',
+     choices : ['none', 'generic', 'rpi', 'bellagio', 'tizonia', 'zynqultrascaleplus', 'rcar'], value : 'none',
+     description : 'The OMX platform to target')
+diff --git a/omx/gstomxvideodec.c b/omx/gstomxvideodec.c
+index 0ff1591..b35dfe1 100644
+--- a/omx/gstomxvideodec.c
++++ b/omx/gstomxvideodec.c
+@@ -144,9 +144,11 @@ gst_omx_video_dec_set_property (GObject * object, guint prop_id,
+     case PROP_NO_REORDER:
+       self->no_reorder = g_value_get_boolean (value);
+       break;
++#ifdef HAVE_LOSSY_COMPRESS
+     case PROP_LOSSY_COMPRESS:
+       self->lossy_compress = g_value_get_boolean (value);
+       break;
++#endif
+     case PROP_BYPASS:
+       self->bypass = g_value_get_boolean (value);
+       break;
+@@ -3004,6 +3006,7 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
+         &sReorder);
+   }
+ 
++#ifdef HAVE_LOSSY_COMPRESS
+   if (!needs_disable) {
+     /* Setting lossy compression mode (output port) */
+     OMXR_MC_VIDEO_PARAM_LOSSY_COMPRESSIONTYPE sLossy;
+@@ -3018,6 +3021,7 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
+     gst_omx_component_set_parameter (self->dec,
+         OMXR_MC_IndexParamVideoLossyCompression, &sLossy);
+   }
++#endif
+ 
+   if (!needs_disable) {
+     /* Setting bypass mode (output port) */
+-- 
+2.25.1
+

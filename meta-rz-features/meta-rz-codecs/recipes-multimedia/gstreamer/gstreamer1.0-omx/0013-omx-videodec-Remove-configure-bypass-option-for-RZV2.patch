@@ -1,0 +1,35 @@
+From 7c4e0bd3eb9a8d70deaef36cf99c5366f43236a4 Mon Sep 17 00:00:00 2001
+From: Sang Ngo <sang.ngo.yf@renesas.com>
+Date: Wed, 24 Apr 2024 09:48:03 +0700
+Subject: [PATCH] omx: videodec: Remove configure bypass option for RZV2H
+
+RZ/V2H is always using bypass mode, so no need to export the bypass variable to user
+
+Signed-off-by: Hung Thanh Huynh <hung.huynh.wz@renesas.com>
+---
+ omx/gstomxvideodec.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/omx/gstomxvideodec.c b/omx/gstomxvideodec.c
+index 57f8463..7276f7d 100644
+--- a/omx/gstomxvideodec.c
++++ b/omx/gstomxvideodec.c
+@@ -254,13 +254,14 @@ gst_omx_video_dec_class_init (GstOMXVideoDecClass * klass)
+           "Whether or not to enable cropping if there is cropping information on SPS",
+           FALSE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+           GST_PARAM_MUTABLE_READY));
++#ifndef USE_TARGET_DEVICE_RZV2H
+   g_object_class_install_property (gobject_class, PROP_BYPASS,
+       g_param_spec_boolean ("bypass",
+           "Use Bypass function",
+           "Whether or not to use Bypass mode in OMX",
+           FALSE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+           GST_PARAM_MUTABLE_READY));
+-
++#endif
+   element_class->change_state =
+       GST_DEBUG_FUNCPTR (gst_omx_video_dec_change_state);
+ 
+-- 
+2.17.1
+

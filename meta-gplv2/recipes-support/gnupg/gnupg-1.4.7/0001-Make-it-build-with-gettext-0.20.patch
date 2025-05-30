@@ -1,0 +1,80 @@
+From 26076b28b79f6a2f2989a301ad7474cfa1153ebd Mon Sep 17 00:00:00 2001
+From: Peter Kjellerstedt <pkj@axis.com>
+Date: Tue, 7 Jan 2020 11:08:39 +0100
+Subject: [PATCH] Make it build with gettext 0.20
+
+Upstream-Status: Inappropriate [legacy version]
+Signed-off-by: Peter Kjellerstedt <peter.kjellerstedt@axis.com>
+---
+ Makefile.am           | 2 +-
+ configure.ac          | 2 +-
+ g10/Makefile.am       | 2 +-
+ keyserver/Makefile.am | 2 +-
+ tools/Makefile.am     | 2 +-
+ 5 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/Makefile.am b/Makefile.am
+index 3423e70..1eebbc2 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -28,7 +28,7 @@ else
+ checks = checks
+ endif
+ 
+-SUBDIRS = m4 intl zlib util mpi cipher tools g10 keyserver po doc ${checks}
++SUBDIRS = m4 zlib util mpi cipher tools g10 keyserver po doc ${checks}
+ EXTRA_DIST = scripts/config.rpath  PROJECTS BUGS config.h.in autogen.sh
+ DISTCLEANFILES = 
+ 
+diff --git a/configure.ac b/configure.ac
+index 9f64b75..d9e5f69 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -813,7 +813,7 @@ dnl Checks for libraries.
+ 
+ AM_GNU_GETTEXT_VERSION(0.14.1)
+ if test "$try_gettext" = yes; then
+-  AM_GNU_GETTEXT(,[need-ngettext])
++  AM_GNU_GETTEXT([external],[need-ngettext])
+ 
+   # gettext requires some extra checks.  These really should be part of
+   # the basic AM_GNU_GETTEXT macro.  TODO: move other gettext-specific
+diff --git a/g10/Makefile.am b/g10/Makefile.am
+index 74a8db1..ff51b7f 100644
+--- a/g10/Makefile.am
++++ b/g10/Makefile.am
+@@ -32,7 +32,7 @@ AM_CPPFLAGS += -DGNUPG_LIBDIR="\"$(libdir)/@PACKAGE@\""
+ endif
+ 
+ needed_libs = ../cipher/libcipher.a ../mpi/libmpi.a ../util/libutil.a
+-other_libs = $(LIBICONV) $(DNSLIBS) $(LIBINTL) $(CAPLIBS)
++other_libs = $(DNSLIBS) $(LIBINTL) $(CAPLIBS)
+ 
+ bin_PROGRAMS = gpg gpgv
+ dist_pkgdata_DATA = options.skel
+diff --git a/keyserver/Makefile.am b/keyserver/Makefile.am
+index 3379910..3527c60 100644
+--- a/keyserver/Makefile.am
++++ b/keyserver/Makefile.am
+@@ -33,7 +33,7 @@ gpgkeys_hkp_SOURCES = gpgkeys_hkp.c ksutil.c ksutil.h
+ gpgkeys_finger_SOURCES = gpgkeys_finger.c ksutil.c ksutil.h
+ gpgkeys_curl_SOURCES = gpgkeys_curl.c ksutil.c ksutil.h
+ 
+-other_libs = $(LIBICONV) $(LIBINTL) $(CAPLIBS)
++other_libs = $(LIBINTL) $(CAPLIBS)
+ 
+ gpgkeys_ldap_CPPFLAGS = @LDAP_CPPFLAGS@
+ gpgkeys_ldap_LDADD = ../util/libcompat.a @LDAPLIBS@ @NETLIBS@ $(other_libs) @GETOPT@ @W32LIBS@
+diff --git a/tools/Makefile.am b/tools/Makefile.am
+index 8a9c035..22cdb1e 100644
+--- a/tools/Makefile.am
++++ b/tools/Makefile.am
+@@ -28,7 +28,7 @@ AM_CPPFLAGS += -DLOCALEDIR="\"$(localedir)\""
+ endif
+ 
+ needed_libs = ../cipher/libcipher.a ../mpi/libmpi.a ../util/libutil.a 
+-other_libs = $(LIBICONV) $(LIBINTL) $(CAPLIBS)
++other_libs = $(LIBINTL) $(CAPLIBS)
+ 
+ 
+ bin_PROGRAMS    = gpgsplit

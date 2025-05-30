@@ -1,0 +1,70 @@
+From aca1b3f2ea3ff8918038d6944ec728c2d4efceec Mon Sep 17 00:00:00 2001
+From: trungvanle <trung.le.xk@renesas.com>
+Date: Fri, 8 Sep 2023 11:43:48 +0700
+Subject: [PATCH] Set output framerate same as input framerate
+
+Need to set input framerate same as output framerate for accurate
+target bitrate calculation. So, this patch will set output
+framerate of VUI property to match input framerate from caps.
+
+Signed-off-by: trungvanle <trung.le.xk@renesas.com>
+---
+ omx/gstomxvideoenc.c | 35 +++++++++++++++++++++++++++++++++++
+ 1 file changed, 35 insertions(+)
+
+diff --git a/omx/gstomxvideoenc.c b/omx/gstomxvideoenc.c
+index e19a29e..5360518 100644
+--- a/omx/gstomxvideoenc.c
++++ b/omx/gstomxvideoenc.c
+@@ -36,6 +36,7 @@
+ #if defined (HAVE_MMNGRBUF) && defined (HAVE_VIDEOR_EXT)
+ #include "mmngr_buf_user_public.h"
+ #include "OMXR_Extension_video.h"
++#include "OMXR_Extension_h264e.h"
+ #endif
+ 
+ #ifdef USE_OMX_TARGET_RPI
+@@ -2655,6 +2656,40 @@ gst_omx_video_enc_set_format (GstVideoEncoder * encoder,
+     port_def.format.video.xFramerate =
+         gst_omx_video_calculate_framerate_q16 (info);
+ 
++#if defined (HAVE_VIDEOR_EXT)
++  {
++    OMX_ERRORTYPE err;
++    OMXR_MC_VIDEO_PARAM_AVC_VUI_PROPERTY vui_param;
++
++    GST_OMX_INIT_STRUCT (&vui_param);
++
++    if (info->fps_n) {
++      err = gst_omx_component_get_parameter(self->enc, OMXR_MC_IndexParamVideoAVCVuiProperty,
++          &vui_param);
++      if (err == OMX_ErrorUnsupportedSetting) {
++        GST_WARNING_OBJECT (self,
++            "Settings of VUI not supported by the component");
++      } else if (err != OMX_ErrorNone) {
++        GST_ERROR_OBJECT (self,
++            "Failed to get vui propety: %s (0x%08x)",
++            gst_omx_error_to_string (err), err);
++      } else {
++        vui_param.bFixedFrameRateFlag = TRUE;
++        vui_param.bTimingInfoPresentFlag = TRUE;
++        vui_param.u32NumUnitsInTick = info->fps_d;
++        vui_param.u32TimeScale = info->fps_n * 2;
++        err = gst_omx_component_set_parameter(self->enc, OMXR_MC_IndexParamVideoAVCVuiProperty,
++            &vui_param);
++        if (err != OMX_ErrorNone) {
++          GST_ERROR_OBJECT (self,
++              "Failed to set vui propety: %s (0x%08x)",
++              gst_omx_error_to_string (err), err);
++        }
++      }
++    }
++  }
++#endif
++
+   GST_DEBUG_OBJECT (self, "Setting inport port definition");
+   if (!gst_omx_video_enc_update_input_port (self, port_def, info->width,
+           info->height))
+-- 
+2.25.1
+

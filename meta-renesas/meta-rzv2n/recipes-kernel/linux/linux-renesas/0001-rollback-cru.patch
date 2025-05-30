@@ -1,0 +1,38 @@
+diff --git a/drivers/media/platform/rzg2l-cru/rzg2l-dma.c b/drivers/media/platform/rzg2l-cru/rzg2l-dma.c
+index b0f5ab7..bb09e7c 100644
+--- a/drivers/media/platform/rzg2l-cru/rzg2l-dma.c
++++ b/drivers/media/platform/rzg2l-cru/rzg2l-dma.c
+@@ -491,9 +491,9 @@ static int rzg2l_cru_initialize_axi(struct rzg2l_cru_dev *cru)
+ 		}
+ 	}
+ 
+-	/* Set AXI burst max length to recommended setting */
++	/* Set AXI burst max length for e-CAM22_CURZH */
+ 	reg = rzg2l_cru_read(cru, AMnAXIATTR) & ~AMnAXIATTR_AXILEN;
+-	rzg2l_cru_write(cru, AMnAXIATTR, reg | 0xF);
++	rzg2l_cru_write(cru, AMnAXIATTR, reg | 0x6);
+ 
+ 	return 0;
+ }
+@@ -1325,21 +1325,6 @@ static irqreturn_t rzv2h_cru_irq(int irq, void *data)
+ 		cru->state = RUNNING;
+ 	}
+ 
+-	if (slot != prev_slot[cru->id]) {
+-		/* Update value of previous memory bank slot */
+-		prev_slot[cru->id] = slot;
+-	} else {
+-		/*
+-		* AXI-Bus congestion maybe occurred.
+-		* Set auto recovery mode to clear all FIFOs
+-		* and resume transmission.
+-		*/
+-		rzg2l_cru_write(cru, AMnFIFO, 0);
+-
+-		cru_dbg(cru, "Dropping frame %u with CRU channel %d\n", cru->sequence, cru->id);
+-		goto done;
+-	}
+-
+ 	/* Capture frame */
+ 	if (cru->queue_buf[slot]) {
+ 		cru->queue_buf[slot]->field = cru->format.field;

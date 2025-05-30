@@ -1,0 +1,42 @@
+From 9ee34964fa0be95a65b3a99a40a8c4a412f06af7 Mon Sep 17 00:00:00 2001
+From: hienhuynh <hien.huynh.px@renesas.com>
+Date: Wed, 12 Jun 2024 22:13:46 +0700
+Subject: [PATCH 1/2] arm64: boot: dts: renesas: r9a09g011-v2mevk2: enable
+ ethernet and xhci
+
+Enable RZ/V2M ethernet and xhci in device tree.
+Also add property for extended address in xHCI and ethernet device node.
+
+Signed-off-by: Tai Huynh <tai.huynh.cp@renesas.com>
+Signed-off-by: hienhuynh <hien.huynh.px@renesas.com>
+---
+ arch/arm64/boot/dts/renesas/r9a09g011-v2mevk2.dts | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/renesas/r9a09g011-v2mevk2.dts b/arch/arm64/boot/dts/renesas/r9a09g011-v2mevk2.dts
+index 49ffa95ea05f..15a4294e65b8 100644
+--- a/arch/arm64/boot/dts/renesas/r9a09g011-v2mevk2.dts
++++ b/arch/arm64/boot/dts/renesas/r9a09g011-v2mevk2.dts
+@@ -66,7 +66,8 @@ &avb {
+ 	renesas,no-ether-link;
+ 	phy-handle = <&phy0>;
+ 	phy-mode = "gmii";
+-	status = "disabled";
++	32-bit-extended-addr =  /bits/ 64 <0x100000000>;
++	status = "okay";
+ 
+ 	phy0: ethernet-phy@0 {
+ 		compatible = "ethernet-phy-id001c.c916",
+@@ -261,7 +262,8 @@ &usb3drd {
+ };
+ 
+ &usb3host {
+-	status = "disabled";
++	32-bit-extended-addr =  /bits/ 64 <0x100000000>;
++	status = "okay";
+ };
+ 
+ &usb3peri {
+-- 
+2.25.1
+

@@ -1,0 +1,44 @@
+From 84eae393f07c3cf8b987c433fbca0b02a779a853 Mon Sep 17 00:00:00 2001
+From: Hung Thanh Huynh <hung.huynh.wz@renesas.com>
+Date: Thu, 21 Sep 2023 19:32:31 +0900
+Subject: [PATCH 05/17] meson: add target_device option for special define
+ support
+
+Although the same build configuration USE_OMX_TARGET_RCAR, RZV2H
+have different support, so we should have more option to specify it.
+
+Signed-off-by: Hung Thanh Huynh <hung.huynh.wz@renesas.com>
+---
+ meson.build       | 10 ++++++++++
+ meson_options.txt |  2 ++
+ 2 files changed, 12 insertions(+)
+
+diff --git a/meson.build b/meson.build
+index c6ca601..8da27ca 100644
+--- a/meson.build
++++ b/meson.build
+@@ -175,6 +175,11 @@ if  lossy_compress == 1
+    cdata.set('HAVE_LOSSY_COMPRESS', 1)
+ endif
+ 
++target_device = get_option('target_device')
++if target_device == 'rzv2h'
++   cdata.set('USE_TARGET_DEVICE_RZV2H', 1)
++endif
++
+ default_omx_struct_packing = 0
+ omx_target = get_option ('target')
+ if omx_target == 'generic'
+diff --git a/meson_options.txt b/meson_options.txt
+index 3716507..192306d 100644
+--- a/meson_options.txt
++++ b/meson_options.txt
+@@ -16,3 +16,5 @@ option('tools', type : 'feature', value : 'auto', yield : true)
+ 
+ #R-Car custom options
+ option('dmabuf_support', type: 'boolean', value: true)
++option('target_device', type: 'string', value: '',
++    description : 'Additional target device for specific support')
+-- 
+2.25.1
+

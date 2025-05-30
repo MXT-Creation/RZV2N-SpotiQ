@@ -1,0 +1,38 @@
+From d8c088eead85a356830c260fd83c4fdf7f246fd4 Mon Sep 17 00:00:00 2001
+From: Nhan Nguyen <nhan.nguyen-thanh@banvien.com.vn>
+Date: Mon, 4 Mar 2024 14:21:15 +0700
+Subject: [PATCH] arm: dts: Add touch panel edt-ft5406 for RZ/G1H
+
+There is issue from IT test:
+Call ioctl(I2C_SLAVE) to change the slave address to FT5X06@38.
+The value of address 0x38 is changed because FT5X06@38 is not configured
+for RZ/G1H.
+
+Signed-off-by: Nhan Nguyen <nhan.nguyen-thanh@banvien.com.vn>
+---
+ arch/arm/boot/dts/r8a7742-iwg21d-q7.dts | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/arch/arm/boot/dts/r8a7742-iwg21d-q7.dts b/arch/arm/boot/dts/r8a7742-iwg21d-q7.dts
+index b973261b6ff2..1265fc49b4df 100644
+--- a/arch/arm/boot/dts/r8a7742-iwg21d-q7.dts
++++ b/arch/arm/boot/dts/r8a7742-iwg21d-q7.dts
+@@ -280,6 +280,15 @@ sgtl5000: codec@a {
+ 		hp-det-gpios = <&gpio4 19 GPIO_ACTIVE_LOW>;
+ 		mic-det-gpios = <&gpio0 26 GPIO_ACTIVE_LOW>;
+ 	};
++	
++	touch: touchpanel@38 {
++		compatible = "edt,edt-ft5406";
++		reg = <0x38>;
++		interrupt-parent = <&gpio0>;
++		interrupts = <24 IRQ_TYPE_EDGE_FALLING>;
++		/* GP1_29 is also shared with audio codec reset pin */
++		reset-gpios = <&gpio1 29 GPIO_ACTIVE_LOW>;
++	};
+ };
+ 
+ &can1 {
+-- 
+2.25.1
+

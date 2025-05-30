@@ -1,0 +1,61 @@
+From bc7cbc04a77b81b1ec1fd522b8f19329c48c5a0c Mon Sep 17 00:00:00 2001
+From: Kiet Pham <kiet.pham.xb@renesas.com>
+Date: Thu, 21 Dec 2023 15:35:12 +0700
+Subject: [PATCH] Fix error Adaptive playback ignores user settings
+
+In streaming use case, if sender stops the current video stream and change to
+the new one with different format, receiver will create new OMX component with
+default configurations.
+
+If user settings are different to default, this phenomenon will create
+unexpected output. So, we need to update user settings every time
+that receiver detects any format change.
+
+Signed-off-by: Kiet Pham <kiet.pham.xb@renesas.com>
+---
+ omx/gstomxvideodec.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/omx/gstomxvideodec.c b/omx/gstomxvideodec.c
+index 8ea4db9..e09129d 100644
+--- a/omx/gstomxvideodec.c
++++ b/omx/gstomxvideodec.c
+@@ -3020,7 +3020,7 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
+     }
+   }
+ #ifdef HAVE_VIDEODEC_EXT
+-  if (!needs_disable) {
++  if (!self->disabled) {
+     /* Setting reorder mode (output port only) */
+     OMXR_MC_VIDEO_PARAM_REORDERTYPE sReorder;
+     GST_OMX_INIT_STRUCT (&sReorder);
+@@ -3036,7 +3036,7 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
+   }
+ 
+ #ifdef HAVE_LOSSY_COMPRESS
+-  if (!needs_disable) {
++  if (!self->disabled) {
+     /* Setting lossy compression mode (output port) */
+     OMXR_MC_VIDEO_PARAM_LOSSY_COMPRESSIONTYPE sLossy;
+     GST_OMX_INIT_STRUCT (&sLossy);
+@@ -3052,7 +3052,7 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
+   }
+ #endif
+ 
+-  if (!needs_disable) {
++  if (!self->disabled) {
+     /* Setting bypass mode (output port) */
+     OMXR_MC_VIDEO_PARAM_BYPASS_POSTPROCESSINGTYPE sBypass;
+     GST_OMX_INIT_STRUCT (&sBypass);
+@@ -3084,7 +3084,7 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
+ 
+   GST_DEBUG_OBJECT (self, "Updating ports definition");
+ #ifdef USE_OMX_TARGET_RCAR
+-  if (!needs_disable) {
++  if (!self->disabled) {
+     OMX_PARAM_PORTDEFINITIONTYPE out_port_def;
+ 
+     /* Initialize default output allocation align for page size
+-- 
+2.17.1
+

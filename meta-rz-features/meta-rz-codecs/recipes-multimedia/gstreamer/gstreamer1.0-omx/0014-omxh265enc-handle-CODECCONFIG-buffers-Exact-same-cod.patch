@@ -1,0 +1,133 @@
+From b378131d691b5872e2272167898e739be07301e7 Mon Sep 17 00:00:00 2001
+From: Hung Thanh Huynh <hung.huynh.wz@renesas.com>
+Date: Fri, 6 Oct 2023 15:52:17 +0900
+Subject: [PATCH 14/17] omxh265enc: handle CODECCONFIG buffers Exact same code
+ as omxh264enc.
+
+Signed-off-by: Hung Thanh Huynh <hung.huynh.wz@renesas.com>
+---
+ omx/gstomxh265enc.c | 74 +++++++++++++++++++++++++++++++++++++++++++++
+ omx/gstomxh265enc.h |  2 ++
+ 2 files changed, 76 insertions(+)
+
+diff --git a/omx/gstomxh265enc.c b/omx/gstomxh265enc.c
+index ea14ca7..c0b84e8 100644
+--- a/omx/gstomxh265enc.c
++++ b/omx/gstomxh265enc.c
+@@ -40,6 +40,8 @@ static void gst_omx_h265_enc_set_property (GObject * object, guint prop_id,
+     const GValue * value, GParamSpec * pspec);
+ static void gst_omx_h265_enc_get_property (GObject * object, guint prop_id,
+     GValue * value, GParamSpec * pspec);
++static GstFlowReturn gst_omx_h265_enc_handle_output_frame (GstOMXVideoEnc *
++    self, GstOMXPort * port, GstOMXBuffer * buf, GstVideoCodecFrame * frame);
+ 
+ enum
+ {
+@@ -104,15 +106,43 @@ gst_omx_h265_enc_loop_filter_mode_get_type (void)
+ }
+ #endif
+ 
++static gboolean
++gst_omx_h265_enc_flush (GstVideoEncoder * enc)
++{
++  GstOMXH265Enc *self = GST_OMX_H265_ENC (enc);
++
++  g_list_free_full (self->headers, (GDestroyNotify) gst_buffer_unref);
++  self->headers = NULL;
++
++  return GST_VIDEO_ENCODER_CLASS (parent_class)->flush (enc);
++}
++
++static gboolean
++gst_omx_h265_enc_stop (GstVideoEncoder * enc)
++{
++  GstOMXH265Enc *self = GST_OMX_H265_ENC (enc);
++
++  g_list_free_full (self->headers, (GDestroyNotify) gst_buffer_unref);
++  self->headers = NULL;
++
++  return GST_VIDEO_ENCODER_CLASS (parent_class)->stop (enc);
++}
++
+ static void
+ gst_omx_h265_enc_class_init (GstOMXH265EncClass * klass)
+ {
+   GObjectClass *gobject_class = G_OBJECT_CLASS (klass);
+   GstElementClass *element_class = GST_ELEMENT_CLASS (klass);
++  GstVideoEncoderClass *basevideoenc_class = GST_VIDEO_ENCODER_CLASS (klass);
+   GstOMXVideoEncClass *videoenc_class = GST_OMX_VIDEO_ENC_CLASS (klass);
+ 
+   videoenc_class->set_format = GST_DEBUG_FUNCPTR (gst_omx_h265_enc_set_format);
+   videoenc_class->get_caps = GST_DEBUG_FUNCPTR (gst_omx_h265_enc_get_caps);
++  videoenc_class->handle_output_frame =
++      GST_DEBUG_FUNCPTR (gst_omx_h265_enc_handle_output_frame);
++
++  basevideoenc_class->flush = gst_omx_h265_enc_flush;
++  basevideoenc_class->stop = gst_omx_h265_enc_stop;
+ 
+   gobject_class->set_property = gst_omx_h265_enc_set_property;
+   gobject_class->get_property = gst_omx_h265_enc_get_property;
+@@ -648,3 +678,47 @@ gst_omx_h265_enc_get_caps (GstOMXVideoEnc * enc, GstOMXPort * port,
+ 
+   return caps;
+ }
++
++static GstFlowReturn
++gst_omx_h265_enc_handle_output_frame (GstOMXVideoEnc * enc, GstOMXPort * port,
++    GstOMXBuffer * buf, GstVideoCodecFrame * frame)
++{
++  GstOMXH265Enc *self = GST_OMX_H265_ENC (enc);
++
++  if (buf->omx_buf->nFlags & OMX_BUFFERFLAG_CODECCONFIG) {
++    /* The codec data is SPS/PPS but our output is stream-format=byte-stream.
++     * For bytestream stream format the SPS/PPS is only in-stream and not
++     * in the caps!
++     */
++    if (buf->omx_buf->nFilledLen >= 4 &&
++        GST_READ_UINT32_BE (buf->omx_buf->pBuffer +
++            buf->omx_buf->nOffset) == 0x00000001) {
++        GstBuffer *hdrs;
++        GstMapInfo map = GST_MAP_INFO_INIT;
++
++        GST_DEBUG_OBJECT (self, "got codecconfig in byte-stream format");
++
++        hdrs = gst_buffer_new_and_alloc (buf->omx_buf->nFilledLen);
++        GST_BUFFER_FLAG_SET (hdrs, GST_BUFFER_FLAG_HEADER);
++
++        gst_buffer_map (hdrs, &map, GST_MAP_WRITE);
++        memcpy (map.data,
++            buf->omx_buf->pBuffer + buf->omx_buf->nOffset,
++            buf->omx_buf->nFilledLen);
++        gst_buffer_unmap (hdrs, &map);
++        self->headers = g_list_append (self->headers, gst_buffer_ref (hdrs));
++
++        if (frame)
++          gst_video_codec_frame_unref (frame);
++        return GST_FLOW_OK;
++    }
++  } else if (self->headers) {
++    enc->headers = self->headers;
++    self->headers = NULL;
++  }
++
++  return
++      GST_OMX_VIDEO_ENC_CLASS
++      (gst_omx_h265_enc_parent_class)->handle_output_frame (enc, port, buf,
++      frame);
++}
+diff --git a/omx/gstomxh265enc.h b/omx/gstomxh265enc.h
+index c53be18..b67fa1f 100644
+--- a/omx/gstomxh265enc.h
++++ b/omx/gstomxh265enc.h
+@@ -55,6 +55,8 @@ struct _GstOMXH265Enc
+   gboolean constrained_intra_prediction;
+   guint32 loop_filter_mode;
+ #endif
++
++  GList *headers;
+ };
+ 
+ struct _GstOMXH265EncClass
+-- 
+2.25.1
+

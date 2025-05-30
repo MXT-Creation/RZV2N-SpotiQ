@@ -1,0 +1,29 @@
+From c04025497ab8ae07d79fa2d8eddcff1fc7b2c78e Mon Sep 17 00:00:00 2001
+From: Nhan Nguyen <nhan.nguyen-thanh@banvien.com.vn>
+Date: Mon, 11 Mar 2024 14:24:37 +0700
+Subject: [PATCH] arm: dts: Fix hang on starting kernel when booting RZ/G1N
+
+Remove pcie node because it is not supported for RZ/G1N.
+
+Signed-off-by: Nhan Nguyen <nhan.nguyen-thanh@banvien.com.vn>
+---
+ arch/arm/boot/dts/r8a7744-iwg20d-q7-rev3.dts | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/arch/arm/boot/dts/r8a7744-iwg20d-q7-rev3.dts b/arch/arm/boot/dts/r8a7744-iwg20d-q7-rev3.dts
+index 18d85b59083b..2a113c58f01e 100644
+--- a/arch/arm/boot/dts/r8a7744-iwg20d-q7-rev3.dts
++++ b/arch/arm/boot/dts/r8a7744-iwg20d-q7-rev3.dts
+@@ -25,6 +25,6 @@ rtc@68 {
+ 	};
+ };
+ 
+-&pciec {
+-	status = "okay";
+-};
++//&pciec {
++//	status = "okay";
++//};
+-- 
+2.25.1
+

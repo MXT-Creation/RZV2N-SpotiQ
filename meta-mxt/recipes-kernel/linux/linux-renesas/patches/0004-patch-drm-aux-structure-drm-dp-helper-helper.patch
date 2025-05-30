@@ -1,0 +1,12 @@
+diff --git a/include/drm/drm_dp_helper.h b/include/drm/drm_dp_helper.h
+index a53243abd945..5adf451b30e9 100644
+--- a/include/drm/drm_dp_helper.h
++++ b/include/drm/drm_dp_helper.h
+@@ -1581,6 +1581,7 @@ struct drm_dp_aux {
+ 	const char *name;
+ 	struct i2c_adapter ddc;
+ 	struct device *dev;
++	struct drm_device *drm_dev;
+ 	struct drm_crtc *crtc;
+ 	struct mutex hw_mutex;
+ 	struct work_struct crc_work;

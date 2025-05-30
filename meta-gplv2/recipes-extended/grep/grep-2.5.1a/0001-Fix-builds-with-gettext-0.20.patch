@@ -1,0 +1,63 @@
+From cd814b2203a1b5e71eaf97c3b9efedc94b680a19 Mon Sep 17 00:00:00 2001
+From: Alexander Kanavin <alex.kanavin@gmail.com>
+Date: Tue, 17 Dec 2019 16:46:05 +0100
+Subject: [PATCH] Fix builds with gettext 0.20
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+André:
+Updated patch to also AC_CHECK_FUNCS([setlocale]).
+Various #include <locale.h> are guarded by the outcome of that,
+and otherwise compilation fails, e.g.:
+| ../../grep-2.5.1a/src/dfa.c:1366:34: error: 'LC_COLLATE' undeclared (first use in this function); did you mean 'REG_ECOLLATE'?
+|  1366 |   hard_LC_COLLATE = hard_locale (LC_COLLATE);
+|       |                                  ^~~~~~~~~~
+|       |                                  REG_ECOLLATE
+
+Upstream-Status: Inappropriate [fixing an old version]
+Signed-off-by: Alexander Kanavin <alex.kanavin@gmail.com>
+Signed-off-by: André Draszik <git@andred.net>
+---
+ Makefile.am  | 2 +-
+ configure.in | 4 +++-
+ 2 files changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/Makefile.am b/Makefile.am
+index e4b58c4..a851b9d 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -1,7 +1,7 @@
+ ## Process this file with automake to create Makefile.in
+ AUTOMAKE_OPTIONS = no-dependencies
+ 
+-SUBDIRS = intl po lib doc src tests m4 vms bootstrap
++SUBDIRS = po lib doc src tests m4 vms bootstrap
+ 
+ EXTRA_DIST = TODO README README-alpha PATCHES.AC PATCHES.AM
+ 
+diff --git a/configure.in b/configure.in
+index 2fa6c71..e1e04ea 100644
+--- a/configure.in
++++ b/configure.in
+@@ -48,6 +48,8 @@ AC_FUNC_ALLOCA
+ AC_FUNC_CLOSEDIR_VOID
+ AC_FUNC_MMAP
+ 
++AC_CHECK_FUNCS([setlocale])
++
+ dnl getpagesize is checked for by AC_FUNC_MMAP.
+ AC_CHECK_FUNCS(btowc isascii memmove setmode strerror wctype mbrtowc)
+ AC_REPLACE_FUNCS(memchr stpcpy strtoul atexit fnmatch)
+@@ -70,7 +72,7 @@ esac
+ 
+ dnl I18N feature
+ ALL_LINGUAS="cs de el eo es et fr gl hr id it ja ko nl no pl pt_BR ru sl sv"
+-AM_GNU_GETTEXT
++AM_GNU_GETTEXT([external])
+ 
+ dnl DOS file name convention
+ dnl sets HAVE_DOS_FILE_NAMES
+-- 
+2.23.0.rc1
+

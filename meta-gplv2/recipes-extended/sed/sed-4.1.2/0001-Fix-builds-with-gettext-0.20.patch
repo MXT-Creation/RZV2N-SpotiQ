@@ -1,0 +1,38 @@
+From 2792bccbfd41427a79edd462906aba78144b8c6a Mon Sep 17 00:00:00 2001
+From: Alexander Kanavin <alex.kanavin@gmail.com>
+Date: Tue, 17 Dec 2019 16:40:58 +0100
+Subject: [PATCH] Fix builds with gettext 0.20
+
+Upstream-Status: Inappropriate [fixing an old version]
+Signed-off-by: Alexander Kanavin <alex.kanavin@gmail.com>
+---
+ Makefile.am  | 2 +-
+ configure.ac | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/Makefile.am b/Makefile.am
+index f0aaa7f..1ebc805 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -6,7 +6,7 @@ ACLOCAL_AMFLAGS = -I config
+ 
+ PACKAGE = sed
+ 
+-SUBDIRS = intl lib po sed doc testsuite
++SUBDIRS = lib po sed testsuite
+ 
+ noinst_DATA = bootstrap.sh
+ noinst_HEADERS = basicdefs.h
+diff --git a/configure.ac b/configure.ac
+index e08c9a3..df20044 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -130,7 +130,7 @@ AM_CONDITIONAL(TEXI2HTML_HTML, test "x$enable_html" = xtexi2html)
+ 
+ ALL_LINGUAS="af ca cs da de el eo es et fi fr ga gl he hr hu id it ja ko nl pl pt_BR ro ru sk sl sr sv tr zh_CN"
+ AM_GNU_GETTEXT_VERSION(0.11)
+-AM_GNU_GETTEXT(, need-ngettext)
++AM_GNU_GETTEXT([external], need-ngettext)
+ 
+ AC_CONFIG_FILES([bootstrap.sh], chmod +x bootstrap.sh)
+ AC_CONFIG_FILES([Makefile doc/Makefile \

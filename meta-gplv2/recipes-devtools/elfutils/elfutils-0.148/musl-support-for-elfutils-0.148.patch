@@ -1,0 +1,133 @@
+From 8a6cefcd35fb0ba6e12afc6611cfeb600865ca17 Mon Sep 17 00:00:00 2001
+From: Andre McCurdy <armccurdy@gmail.com>
+Date: Wed, 27 Sep 2017 21:32:27 -0700
+Subject: [PATCH] musl build fixes
+
+Upstream-Status: Inappropriate [legacy version]
+
+Signed-off-by: Andre McCurdy <armccurdy@gmail.com>
+---
+ lib/fixedsizehash.h   |  4 ++--
+ lib/system.h          | 11 +++++++++++
+ libelf/elf.h          |  8 ++++++--
+ libelf/elf_begin.c    |  4 ++--
+ libelf/elf_getarsym.c |  2 +-
+ libelf/libelf.h       |  1 +
+ 6 files changed, 23 insertions(+), 7 deletions(-)
+
+diff --git a/lib/fixedsizehash.h b/lib/fixedsizehash.h
+index a686051..3118954 100644
+--- a/lib/fixedsizehash.h
++++ b/lib/fixedsizehash.h
+@@ -51,12 +51,12 @@
+ #include <errno.h>
+ #include <stdlib.h>
+ #include <string.h>
+-#include <sys/cdefs.h>
+ #include <sys/param.h>
+ 
+ #include <system.h>
+ 
+-#define CONCAT(t1,t2) __CONCAT (t1,t2)
++#define CONCAT1(x,y) x##y
++#define CONCAT(x,y) CONCAT1(x,y)
+ 
+ /* Before including this file the following macros must be defined:
+ 
+diff --git a/lib/system.h b/lib/system.h
+index 10b4734..a9cb35e 100644
+--- a/lib/system.h
++++ b/lib/system.h
+@@ -52,6 +52,17 @@
+ #include <stddef.h>
+ #include <stdint.h>
+ 
++#ifndef TEMP_FAILURE_RETRY
++#define TEMP_FAILURE_RETRY(expression)			\
++  (__extension__					\
++    ({ long int __result;				\
++       do __result = (long int) (expression);		\
++       while (__result == -1L && errno == EINTR);	\
++       __result; }))
++#endif
++
++#define error(status, errno, ...) err(status, __VA_ARGS__)
++
+ extern void *xmalloc (size_t) __attribute__ ((__malloc__));
+ extern void *xcalloc (size_t, size_t) __attribute__ ((__malloc__));
+ extern void *xrealloc (void *, size_t) __attribute__ ((__malloc__));
+diff --git a/libelf/elf.h b/libelf/elf.h
+index 4158764..6d9af96 100644
+--- a/libelf/elf.h
++++ b/libelf/elf.h
+@@ -23,7 +23,9 @@
+ 
+ #include <features.h>
+ 
+-__BEGIN_DECLS
++#ifdef __cplusplus
++extern "C" {
++#endif
+ 
+ /* Standard ELF types.  */
+ 
+@@ -2909,6 +2911,8 @@ typedef Elf32_Addr Elf32_Conflict;
+ #define R_M32R_NUM		256	/* Keep this the last entry. */
+ 
+ 
+-__END_DECLS
++#ifdef __cplusplus
++}
++#endif
+ 
+ #endif	/* elf.h */
+diff --git a/libelf/elf_begin.c b/libelf/elf_begin.c
+index 0b38991..9083736 100644
+--- a/libelf/elf_begin.c
++++ b/libelf/elf_begin.c
+@@ -819,7 +819,7 @@ __libelf_next_arhdr_wrlock (elf)
+     }
+ 
+   /* Copy the raw name over to a NUL terminated buffer.  */
+-  *((char *) __mempcpy (elf->state.ar.raw_name, ar_hdr->ar_name, 16)) = '\0';
++  *((char *) mempcpy (elf->state.ar.raw_name, ar_hdr->ar_name, 16)) = '\0';
+ 
+   elf_ar_hdr = &elf->state.ar.elf_ar_hdr;
+ 
+@@ -911,7 +911,7 @@ __libelf_next_arhdr_wrlock (elf)
+       const char *string = ar_hdr->FIELD;				      \
+       if (ar_hdr->FIELD[sizeof (ar_hdr->FIELD) - 1] != ' ')		      \
+ 	{								      \
+-	  *((char *) __mempcpy (buf, ar_hdr->FIELD, sizeof (ar_hdr->FIELD)))  \
++	  *((char *) mempcpy (buf, ar_hdr->FIELD, sizeof (ar_hdr->FIELD)))    \
+ 	    = '\0';							      \
+ 	  string = buf;							      \
+ 	}								      \
+diff --git a/libelf/elf_getarsym.c b/libelf/elf_getarsym.c
+index 9ff7f29..74339ce 100644
+--- a/libelf/elf_getarsym.c
++++ b/libelf/elf_getarsym.c
+@@ -257,7 +257,7 @@ elf_getarsym (elf, ptr)
+ 	      else
+ 		arsym[cnt].as_off = file_data[cnt];
+ 	      arsym[cnt].as_hash = _dl_elf_hash (str_data);
+-	      str_data = rawmemchr (str_data, '\0') + 1;
++	      str_data = memchr (str_data, '\0', SIZE_MAX) + 1;
+ 	    }
+ 	  /* At the end a special entry.  */
+ 	  arsym[n].as_name = NULL;
+diff --git a/libelf/libelf.h b/libelf/libelf.h
+index b0b3a8d..ec15c43 100644
+--- a/libelf/libelf.h
++++ b/libelf/libelf.h
+@@ -50,6 +50,7 @@
+ #ifndef _LIBELF_H
+ #define _LIBELF_H 1
+ 
++#include <fcntl.h>
+ #include <sys/types.h>
+ 
+ /* Get the ELF types.  */
+-- 
+1.9.1
+

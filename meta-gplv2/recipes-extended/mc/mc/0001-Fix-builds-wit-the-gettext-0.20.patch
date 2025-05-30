@@ -1,0 +1,52 @@
+From 56aef108be94019c7828c14f0c4849336f811847 Mon Sep 17 00:00:00 2001
+From: Alexander Kanavin <alex.kanavin@gmail.com>
+Date: Tue, 17 Dec 2019 16:34:06 +0100
+Subject: [PATCH] Fix builds wit the gettext 0.20
+
+Upstream-Status: Inappropriate [fixing an old version]
+Signed-off-by: Alexander Kanavin <alex.kanavin@gmail.com>
+---
+ Makefile.am     | 2 +-
+ configure.ac    | 2 +-
+ src/Makefile.am | 2 +-
+ 3 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/Makefile.am b/Makefile.am
+index ab4f9b7..b27ab4a 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -1,7 +1,7 @@
+ ## Process this file with automake to create Makefile.in.
+ AUTOMAKE_OPTIONS = 1.5
+ 
+-SUBDIRS = intl po lib src doc contrib misc
++SUBDIRS = po lib src doc contrib misc
+ 
+ EXTRA_DIST = 
+ 
+diff --git a/configure.ac b/configure.ac
+index c05902d..0430714 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -88,7 +88,7 @@ fi
+ dnl
+ dnl Internationalization
+ dnl
+-AM_GNU_GETTEXT(no-libtool, need-ngettext)
++AM_GNU_GETTEXT([external],no-libtool, need-ngettext)
+ AM_GNU_GETTEXT_VERSION(0.14.3)
+ 
+ if test "x$USE_INCLUDED_LIBINTL" = xyes; then
+diff --git a/src/Makefile.am b/src/Makefile.am
+index 2da86c3..1859f0d 100644
+--- a/src/Makefile.am
++++ b/src/Makefile.am
+@@ -52,7 +52,7 @@ else
+ mc_LDADD += $(GLIB_LIBS)
+ endif
+ 
+-mc_LDADD += $(PCRE_LIBS) $(LIBICONV) $(INTLLIBS)
++mc_LDADD += $(PCRE_LIBS) $(INTLLIBS)
+ 
+ SRC_mc_conssaver = \
+ 	cons.handler.c consaver/cons.saver.h

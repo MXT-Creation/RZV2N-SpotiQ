@@ -1,0 +1,52 @@
+From 938cca2b5b55d53a56c475692bc9d75c86fa3970 Mon Sep 17 00:00:00 2001
+From: Hung Thanh Huynh <hung.huynh.wz@renesas.com>
+Date: Fri, 20 Oct 2023 10:07:33 +0900
+Subject: [PATCH 17/17] h265utils: Update the supported profile and level for
+ RZV2H
+
+RZV2H only support profile main and maximum level is 5.
+
+Signed-off-by: Hung Thanh Huynh <hung.huynh.wz@renesas.com>
+---
+ omx/gstomxh265utils.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/omx/gstomxh265utils.c b/omx/gstomxh265utils.c
+index 44f3eff..2881a4c 100644
+--- a/omx/gstomxh265utils.c
++++ b/omx/gstomxh265utils.c
+@@ -39,6 +39,7 @@ typedef struct
+ 
+ static const H265ProfileMapping h265_profiles[] = {
+   {"main", OMX_VIDEO_HEVCProfileMain},
++#ifndef USE_TARGET_DEVICE_RZV2H
+   {"main-10", OMX_VIDEO_HEVCProfileMain10},
+ #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+   {"main-still-picture",
+@@ -63,6 +64,7 @@ static const H265ProfileMapping h265_profiles[] = {
+   {"main-422-10-intra",
+       (OMX_VIDEO_HEVCPROFILETYPE) OMX_ALG_VIDEO_HEVCProfileMain422_10_Intra},
+ #endif
++#endif
+ };
+ 
+ static const H265LevelLimit h265_level_limit[] = {
+@@ -133,6 +135,7 @@ gst_omx_h265_utils_get_level_from_str (const gchar * level, const gchar * tier)
+       return OMX_VIDEO_HEVCMainTierLevel51;
+     else if (g_str_equal (level, "5.2"))
+       return OMX_VIDEO_HEVCMainTierLevel52;
++#ifndef USE_TARGET_DEVICE_RZV2H
+     else if (g_str_equal (level, "6"))
+       return OMX_VIDEO_HEVCMainTierLevel6;
+     else if (g_str_equal (level, "6.1"))
+@@ -156,6 +159,7 @@ gst_omx_h265_utils_get_level_from_str (const gchar * level, const gchar * tier)
+       return OMX_VIDEO_HEVCHighTierLevel61;
+     else if (g_str_equal (level, "6.2"))
+       return OMX_VIDEO_HEVCHighTierLevel62;
++#endif
+   }
+ 
+   return OMX_VIDEO_HEVCLevelUnknown;
+-- 
+2.25.1
+

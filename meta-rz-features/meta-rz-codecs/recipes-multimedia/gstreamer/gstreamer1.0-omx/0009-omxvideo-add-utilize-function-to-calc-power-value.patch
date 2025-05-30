@@ -1,0 +1,54 @@
+From 8868ffc42f5f74c141a98d3143c98aeb53f86bf3 Mon Sep 17 00:00:00 2001
+From: Hung Thanh Huynh <hung.huynh.wz@renesas.com>
+Date: Fri, 13 Oct 2023 11:44:18 +0900
+Subject: [PATCH 09/17] omxvideo: add utilize function to calc power value
+
+Sometimes we need to calculate the power of base value.
+Add this function to use.
+
+Signed-off-by: Hung Thanh Huynh <hung.huynh.wz@renesas.com>
+---
+ omx/gstomxvideo.c | 16 ++++++++++++++++
+ omx/gstomxvideo.h |  2 ++
+ 2 files changed, 18 insertions(+)
+
+diff --git a/omx/gstomxvideo.c b/omx/gstomxvideo.c
+index 9feda19..d92d309 100644
+--- a/omx/gstomxvideo.c
++++ b/omx/gstomxvideo.c
+@@ -235,3 +235,19 @@ gst_omx_video_is_equal_framerate_q16 (OMX_U32 q16_a, OMX_U32 q16_b)
+    * an unnecessary re-negotiation. */
+   return fabs (((gdouble) q16_a) - ((gdouble) q16_b)) / (gdouble) q16_b < 0.01;
+ }
++
++guint
++gst_omx_video_round_power (guint value, guint base)
++{
++  guint power = 1;
++
++  /* if base value is lower than 2, we should not do anything with it.
++   */
++  if (base < 2)
++    return value;
++
++  while (power < value)
++    power *= base;
++
++  return power;
++}
+diff --git a/omx/gstomxvideo.h b/omx/gstomxvideo.h
+index 9251547..1184d5e 100644
+--- a/omx/gstomxvideo.h
++++ b/omx/gstomxvideo.h
+@@ -63,6 +63,8 @@ OMX_U32 gst_omx_video_calculate_framerate_q16 (GstVideoInfo * info);
+ 
+ gboolean gst_omx_video_is_equal_framerate_q16 (OMX_U32 q16_a, OMX_U32 q16_b);
+ 
++guint gst_omx_video_round_power (guint value, guint base);
++
+ G_END_DECLS
+ 
+ #endif /* __GST_OMX_VIDEO_H__ */
+-- 
+2.25.1
+

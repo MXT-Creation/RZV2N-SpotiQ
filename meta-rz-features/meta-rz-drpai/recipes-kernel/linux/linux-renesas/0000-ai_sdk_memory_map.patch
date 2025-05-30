@@ -1,0 +1,48 @@
+diff --git a/arch/arm64/boot/dts/renesas/r9a09g056n44-dev.dts b/arch/arm64/boot/dts/renesas/r9a09g056n44-dev.dts
+index 842de0b..181bed3 100644
+--- a/arch/arm64/boot/dts/renesas/r9a09g056n44-dev.dts
++++ b/arch/arm64/boot/dts/renesas/r9a09g056n44-dev.dts
+@@ -58,16 +58,16 @@
+ 			compatible = "shared-dma-pool";
+ 			linux,cma-default;
+ 			reusable;
+-			reg = <0x0 0x58000000 0x0 0x10000000>;
++			reg = <0x0 0x58000000 0x0 0x28000000>;
+ 		};
+ 
+ 		mmp_reserved: linux,multimedia {
+ 			compatible = "shared-dma-pool";
+ 			reusable;
+-			reg = <0x00000000 0x68000000 0x0 0x20000000>;
++			reg = <0x00000000 0x80000000 0x0 0x10000000>;
+ 		};
+ 
+-		isp: ISP@90000000 {
++		isp_reserved: frame_buffer@90000000 {
+ 			compatible = "shared-dma-pool";
+ 			reusable;
+ 			reg = <0x0 0x90000000 0x0 0x18000000>;
+diff --git a/arch/arm64/boot/dts/renesas/r9a09g056n44-evk.dts b/arch/arm64/boot/dts/renesas/r9a09g056n44-evk.dts
+index 2eebf57..390dd9a 100644
+--- a/arch/arm64/boot/dts/renesas/r9a09g056n44-evk.dts
++++ b/arch/arm64/boot/dts/renesas/r9a09g056n44-evk.dts
+@@ -101,16 +101,16 @@
+ 			compatible = "shared-dma-pool";
+ 			linux,cma-default;
+ 			reusable;
+-			reg = <0x0 0x58000000 0x0 0x10000000>;
++			reg = <0x0 0x58000000 0x0 0x28000000>;
+ 		};
+ 
+ 		mmp_reserved: linux,multimedia {
+ 			compatible = "shared-dma-pool";
+ 			reusable;
+-			reg = <0x00000000 0x68000000 0x0 0x20000000>;
++			reg = <0x00000000 0x80000000 0x0 0x10000000>;
+ 		};
+ 
+-		isp: ISP@90000000 {
++		isp_reserved: frame_buffer@90000000 {
+ 			compatible = "shared-dma-pool";
+ 			reusable;
+ 			reg = <0x0 0x90000000 0x0 0x18000000>;

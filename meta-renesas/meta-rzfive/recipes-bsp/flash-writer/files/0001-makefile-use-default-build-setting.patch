@@ -1,0 +1,54 @@
+From db0aedf8dabff45b95bd90612982cc70c45e6427 Mon Sep 17 00:00:00 2001
+From: Hien Huynh <hien.huynh.px@renesas.com>
+Date: Thu, 7 Mar 2024 18:45:24 +0700
+Subject: [PATCH] makefile: use default build setting
+
+Signed-off-by: Nhan Nguyen <nhan.nguyen.yb@renesas.com>
+Signed-off-by: Hien Huynh <hien.huynh.px@renesas.com>
+---
+ makefile | 16 ++++++++--------
+ 1 file changed, 8 insertions(+), 8 deletions(-)
+
+diff --git a/makefile b/makefile
+index e231161..9c7c15f 100644
+--- a/makefile
++++ b/makefile
+@@ -75,7 +75,7 @@ ALIGN   = -mstrict-align
+ BOOTDIR     = riscv_boot
+ OUTPUT_DIR  = riscv_output
+ OBJECT_DIR  = riscv_obj
+-CROSS_COMPILE ?= riscv64-unknown-linux-gnu-
++#CROSS_COMPILE ?= riscv64-unknown-linux-gnu-
+ 
+ CFLAGS += -O0 -fno-stack-protector -fno-exceptions -fno-unwind-tables -fno-asynchronous-unwind-tables -fdata-sections -ffunction-sections
+ BOOT_DEF    = Writer
+@@ -213,19 +213,19 @@ DEPEND_FILE = $(patsubst %.lib, ,$(OBJ_FILE:%.o=%.d)) $(LINKER_FILE:.s=.d)
+ 
+ ###################################################
+ #C compiler
+-CC = $(CROSS_COMPILE)gcc
++#CC = $(CROSS_COMPILE)gcc
+ #C++ compiler
+-CPP = $(CROSS_COMPILE)cpp
++#CPP = $(CROSS_COMPILE)cpp
+ #Assembler
+-AS = $(CROSS_COMPILE)as
++#AS = $(CROSS_COMPILE)as
+ #Linker
+-LD = $(CROSS_COMPILE)ld
++#LD = $(CROSS_COMPILE)ld
+ #Liblary
+-AR = $(CROSS_COMPILE)ar
++#AR = $(CROSS_COMPILE)ar
+ #Object dump
+-OBJDUMP = $(CROSS_COMPILE)objdump
++#OBJDUMP = $(CROSS_COMPILE)objdump
+ #Object copy
+-OBJCOPY = $(CROSS_COMPILE)objcopy
++#OBJCOPY = $(CROSS_COMPILE)objcopy
+ 
+ #clean
+ CL = rm -rf
+-- 
+2.25.1
+

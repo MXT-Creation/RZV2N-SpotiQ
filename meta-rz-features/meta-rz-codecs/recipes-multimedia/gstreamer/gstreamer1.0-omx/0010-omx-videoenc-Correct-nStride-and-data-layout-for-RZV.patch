@@ -1,0 +1,58 @@
+From 6b0cc3a6483bd9b4650339bee7ff7d8f652edfeb Mon Sep 17 00:00:00 2001
+From: Hung Thanh Huynh <hung.huynh.wz@renesas.com>
+Date: Fri, 13 Oct 2023 11:47:46 +0900
+Subject: [PATCH 10/17] omx: videoenc: Correct nStride and data layout for
+ RZV2H
+
+Current RZ/V2H require nStride is 2^n.
+Also modify the data layout to suitable with current RZ/V2H OMX
+
+Signed-off-by: Hung Thanh Huynh <hung.huynh.wz@renesas.com>
+---
+ omx/gstomxvideoenc.c | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/omx/gstomxvideoenc.c b/omx/gstomxvideoenc.c
+index e19a29e..db3c276 100644
+--- a/omx/gstomxvideoenc.c
++++ b/omx/gstomxvideoenc.c
+@@ -1996,7 +1996,11 @@ gst_omx_video_enc_update_input_port (GstOMXVideoEnc * self,
+           port_def.format.video.nStride = GST_ROUND_UP_64 (stride);
+           break;
+         case OMX_COLOR_FormatYUV420SemiPlanar:
++#ifdef USE_TARGET_DEVICE_RZV2H
++          port_def.format.video.nStride = gst_omx_video_round_power (stride, 2);
++#else
+           port_def.format.video.nStride = GST_ROUND_UP_32 (stride);
++#endif
+           break;
+         default:
+           break;
+@@ -2795,7 +2799,11 @@ gst_omx_video_enc_semi_planar_manual_copy (GstOMXVideoEnc * self,
+     GST_ERROR_OBJECT (self, "Invalid input buffer size");
+     return FALSE;
+   }
++#ifdef USE_TARGET_DEVICE_RZV2H
++  dest_stride = GST_ROUND_UP_128 (port_def->format.video.nFrameWidth);
++#else
+   dest_stride = port_def->format.video.nStride;
++#endif
+ 
+   for (i = 0; i < 2; i++) {
+     src_stride = GST_VIDEO_FRAME_COMP_STRIDE (&frame, i);
+@@ -2805,8 +2813,12 @@ gst_omx_video_enc_semi_planar_manual_copy (GstOMXVideoEnc * self,
+ 
+     dest = outbuf->omx_buf->pBuffer + outbuf->omx_buf->nOffset;
+     if (i == 1)
++#ifdef USE_TARGET_DEVICE_RZV2H
++      dest += height * dest_stride;
++#else
+       dest +=
+           port_def->format.video.nSliceHeight * port_def->format.video.nStride;
++#endif
+ 
+     src = GST_VIDEO_FRAME_COMP_DATA (&frame, i);
+     height = GST_VIDEO_FRAME_COMP_HEIGHT (&frame, i);
+-- 
+2.25.1
+

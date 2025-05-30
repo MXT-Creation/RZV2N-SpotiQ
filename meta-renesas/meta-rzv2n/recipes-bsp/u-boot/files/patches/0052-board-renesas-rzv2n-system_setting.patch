@@ -1,0 +1,85 @@
+diff --git a/board/renesas/rzv2n-dev/rzv2n-dev.c b/board/renesas/rzv2n-dev/rzv2n-dev.c
+index 0a0a1d2..ce58f54 100644
+--- a/board/renesas/rzv2n-dev/rzv2n-dev.c
++++ b/board/renesas/rzv2n-dev/rzv2n-dev.c
+@@ -302,6 +302,71 @@ int board_early_init_f(void)
+ 	return 0;
+ }
+ 
++static void board_system_setting_init(void)
++{
++	(*(volatile u32 *)(0x14a44124)) = 0x00000000;
++	(*(volatile u32 *)(0x14a44128)) = 0x00000001;
++	(*(volatile u32 *)(0x14a4412c)) = 0x03500000;
++	(*(volatile u32 *)(0x14a4410c)) = 0x00000002;
++
++	(*(volatile u32 *)(0x19044124)) = 0x00000000;
++	(*(volatile u32 *)(0x19044124)) = 0x00000000;
++	(*(volatile u32 *)(0x19044124)) = 0x00000000;
++	(*(volatile u32 *)(0x19044124)) = 0x00000000;
++	(*(volatile u32 *)(0x19044124)) = 0x00000000;
++	(*(volatile u32 *)(0x19044124)) = 0x00000000;
++	(*(volatile u32 *)(0x19044124)) = 0x00000000;
++	(*(volatile u32 *)(0x19044124)) = 0x00000000;
++	(*(volatile u32 *)(0x19044124)) = 0x00000000;
++	(*(volatile u32 *)(0x19044124)) = 0x00000000;
++	(*(volatile u32 *)(0x19044124)) = 0x00000000;
++	(*(volatile u32 *)(0x19044124)) = 0x00000000;
++	(*(volatile u32 *)(0x19044124)) = 0x00000000;
++	(*(volatile u32 *)(0x19044124)) = 0x00000000;
++	(*(volatile u32 *)(0x19044124)) = 0x00000000;
++	(*(volatile u32 *)(0x19044124)) = 0x00000000;
++	(*(volatile u32 *)(0x19044124)) = 0x00000000;
++	(*(volatile u32 *)(0x19044124)) = 0x00000000;
++	(*(volatile u32 *)(0x19044124)) = 0x00000000;
++	(*(volatile u32 *)(0x19044124)) = 0x00000000;
++	(*(volatile u32 *)(0x19044124)) = 0x00000000;
++	(*(volatile u32 *)(0x19044124)) = 0x00000000;
++	(*(volatile u32 *)(0x19044128)) = 0x00000001;
++	(*(volatile u32 *)(0x1904412c)) = 0x02800000;
++	(*(volatile u32 *)(0x1904410c)) = 0x00000002;
++	(*(volatile u32 *)(0x19045124)) = 0x00000000;
++	(*(volatile u32 *)(0x19045128)) = 0x00000001;
++	(*(volatile u32 *)(0x1904512c)) = 0x02800000;
++	(*(volatile u32 *)(0x1904510c)) = 0x00000002;
++	(*(volatile u32 *)(0x19046124)) = 0x00000000;
++	(*(volatile u32 *)(0x19046128)) = 0x00000001;
++	(*(volatile u32 *)(0x1904612c)) = 0x01b00000;
++	(*(volatile u32 *)(0x1904610c)) = 0x00000002;
++	(*(volatile u32 *)(0x19047124)) = 0x00000000;
++	(*(volatile u32 *)(0x19047128)) = 0x00000001;
++	(*(volatile u32 *)(0x1904712c)) = 0x01b00000;
++	(*(volatile u32 *)(0x1904710c)) = 0x00000002;
++
++	(*(volatile u32 *)(0x16543124)) = 0x00000000;
++	(*(volatile u32 *)(0x16543128)) = 0x00000001;
++	(*(volatile u32 *)(0x1654312c)) = 0x01100000;
++	(*(volatile u32 *)(0x1654310c)) = 0x00000002;
++	(*(volatile u32 *)(0x16544124)) = 0x00000000;
++	(*(volatile u32 *)(0x16544128)) = 0x00000001;
++	(*(volatile u32 *)(0x1654412c)) = 0x00900000;
++	(*(volatile u32 *)(0x1654410c)) = 0x00000002;
++	(*(volatile u32 *)(0x16545124)) = 0x00000000;
++	(*(volatile u32 *)(0x16545128)) = 0x00000001;
++	(*(volatile u32 *)(0x1654512c)) = 0x01800000;
++	(*(volatile u32 *)(0x1654510c)) = 0x00000002;
++	(*(volatile u32 *)(0x1614a124)) = 0x00000000;
++	(*(volatile u32 *)(0x1614a128)) = 0x00000001;
++	(*(volatile u32 *)(0x1614a12c)) = 0x04f00000;
++	(*(volatile u32 *)(0x1614a10c)) = 0x00000002;
++
++	return;
++}
++
+ int board_init(void)
+ {
+ 	/* address of boot parameters */
+@@ -314,6 +379,8 @@ int board_init(void)
+ 	board_pmic_i2c_init();
+ #endif
+ 
++	board_system_setting_init();
++
+ 	return 0;
+ }
+ 

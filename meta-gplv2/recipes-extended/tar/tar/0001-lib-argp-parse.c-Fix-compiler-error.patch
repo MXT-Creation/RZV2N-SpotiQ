@@ -1,0 +1,35 @@
+From 153c0aab9e2a4a97b1a2c6b530594cd9a211e9ec Mon Sep 17 00:00:00 2001
+From: Joakim Roubert <joakimr@axis.com>
+Date: Thu, 6 Dec 2018 10:33:14 +0100
+Subject: [PATCH] lib/argp-parse.c: Fix compiler error
+
+This avoids the following error:
+
+  lib/argp-parse.c: In function 'argp_version_parser':
+  lib/argp-parse.c:158:2: error: format not a string literal and no
+  format arguments [-Werror=format-security]
+    __argp_error (state, dgettext (state->root_argp->argp_domain,
+    ^~~~~~~~~~~~
+
+Upstream-Status: Inappropriate [old version]
+Signed-off-by: Joakim Roubert <joakim.roubert@axis.com>
+---
+ lib/argp-parse.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/lib/argp-parse.c b/lib/argp-parse.c
+index a7de729..09511ba 100644
+--- a/lib/argp-parse.c
++++ b/lib/argp-parse.c
+@@ -155,7 +155,7 @@ argp_version_parser (int key, char *arg, struct argp_state *state)
+       else if (argp_program_version)
+ 	fprintf (state->out_stream, "%s\n", argp_program_version);
+       else
+-	__argp_error (state, dgettext (state->root_argp->argp_domain,
++	__argp_error (state, "%s", dgettext (state->root_argp->argp_domain,
+ 				       "(PROGRAM ERROR) No version known!?"));
+       if (! (state->flags & ARGP_NO_EXIT))
+ 	exit (0);
+-- 
+2.11.0
+

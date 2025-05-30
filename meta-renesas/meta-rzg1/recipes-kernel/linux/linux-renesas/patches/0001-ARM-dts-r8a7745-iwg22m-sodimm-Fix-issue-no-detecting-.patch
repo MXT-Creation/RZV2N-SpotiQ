@@ -1,0 +1,35 @@
+From 888d0cb0b0e72f689d241ab45fc340d4079ac3c9 Mon Sep 17 00:00:00 2001
+From: Sang Nguyen <sang.nguyen-hoang@banvien.com.vn>
+Date: Tue, 19 Sep 2023 10:57:58 +0700
+Subject: [PATCH] ARM: dts: r8a7745-iwg22d-sodimm: Fix issue no detecting 
+ sdcard of board G1E
+
+Issue:
+[  336.775369] mmc2: error -110 whilst initialising SD card
+
+Solution:
+  Change gpio0_20 (select voltage pin) to HIGH since SD Cards require 
+3.3v from power on. Then, the SD controller must send a command to 
+transition to 1.8v.
+
+Signed-off-by: Sang Nguyen <sang.nguyen-hoang@banvien.com.vn>
+---
+ arch/arm/boot/dts/r8a7745-iwg22d-sodimm.dts | 2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+diff --git a/arch/arm/boot/dts/r8a7745-iwg22d-sodimm.dts b/arch/arm/boot/dts/r8a7745-iwg22d-sodimm.dts
+index 6f45a28..e672f76 100644
+--- a/arch/arm/boot/dts/r8a7745-iwg22d-sodimm.dts
++++ b/arch/arm/boot/dts/r8a7745-iwg22d-sodimm.dts
+@@ -90,7 +90,7 @@
+ 		regulator-min-microvolt = <1800000>;
+ 		regulator-max-microvolt = <3300000>;
+ 
+-		gpios = <&gpio0 20 GPIO_ACTIVE_LOW>;
++		gpios = <&gpio0 20 GPIO_ACTIVE_HIGH>;
+ 		gpios-states = <1>;
+ 		states = <3300000 1>, <1800000 0>;
+ 	};
+-- 
+2.7.4
+

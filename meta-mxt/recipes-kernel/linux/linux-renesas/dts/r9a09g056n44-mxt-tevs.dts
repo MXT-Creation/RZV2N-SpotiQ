@@ -1,0 +1,535 @@
+// SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+/*
+ * Device Tree Source for the RZ/V2N SPOTIQ MXT board variant
+ *
+ * Copyright (C) 2025 MXT Creation SRL
+ */
+
+/dts-v1/;
+#include "r9a09g056.dtsi"
+#include <dt-bindings/pinctrl/rzg2l-pinctrl.h>
+#include <dt-bindings/gpio/gpio.h>
+
+/ {
+	model = "Renesas EVK based on r9a09g056n44";
+	compatible = "renesas,r9a09g056n44-evk", "renesas,r9a09g056n44", "renesas,r9a09g056";
+
+	aliases {
+		serial0 = &scif0;
+		serial1 = &sci0;
+		serial2 = &sci1;
+		mmc0 = &sdhi0;
+		mmc2 = &sdhi2;
+		ethernet0 = &eth0;
+	};
+	
+	chosen {
+		bootargs = "ignore_loglevel";
+		stdout-path = "serial0:115200n8";
+	};
+
+	memory@48000000 {
+		device_type = "memory";
+		/* first 128MB is reserved for secure area. */
+		reg = <0x0 0x48000000 0x1 0xF8000000>;
+	};
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		global_cma: linux,cma@58000000 {
+			compatible = "shared-dma-pool";
+			linux,cma-default;
+			reusable;
+			reg = <0x0 0x58000000 0x0 0x10000000>;
+		};
+
+		mmp_reserved: linux,multimedia {
+			compatible = "shared-dma-pool";
+			reusable;
+			reg = <0x00000000 0x68000000 0x0 0x20000000>;
+		};
+
+		drp_reserved: DRP-AI@D0000000 {
+			reusable;
+			reg = <0x0 0xD0000000 0x0 0x20000000>;
+		};
+
+		image_buf0: image_buf@B0000000 {
+			compatible = "shared-dma-pool";
+			reusable;
+			reg = <0x0 0xB0000000 0x0 0x4000000>;
+			label = "image_buf0";
+		};
+
+		shared_drp_reserved: SharedDRP@C7CFF000 {
+			reusable;
+			reg = <0x0 0xC7CFF000 0x0 0x00001000>;
+		};
+	};
+
+	mmngr {
+		compatible = "renesas,mmngr";
+		memory-region = <&mmp_reserved>;
+	};
+
+	mmngrbuf {
+		compatible = "renesas,mmngrbuf";
+	};
+
+	vspm_if {
+		compatible = "renesas,vspm_if";
+	};
+	
+		reg_1p8v: regulator0 {
+		compatible = "regulator-fixed";
+
+		regulator-name = "fixed-1.8V";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		regulator-boot-on;
+		regulator-always-on;
+	};
+
+	reg_3p3v: regulator1 {
+		compatible = "regulator-fixed";
+
+		regulator-name = "fixed-3.3V";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-boot-on;
+		regulator-always-on;
+	};
+
+	vccq_sdhi0: regulator-vccq-sdhi0 {
+		compatible = "regulator-gpio";
+
+		regulator-name = "SDHI0 VccQ";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <3300000>;
+
+		gpios = <&pinctrl RZG2L_GPIO(10, 0) GPIO_ACTIVE_HIGH>;
+
+		gpios-states = <0>;
+		states = <3300000 0 1800000 1>;
+	};
+
+	vccq_sdhi1: regulator-vccq-sdhi1 {
+		compatible = "regulator-gpio";
+
+		regulator-name = "SDHI1 VccQ";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <3300000>;
+
+		gpios = <&pinctrl RZG2L_GPIO(10, 2) GPIO_ACTIVE_HIGH>;
+
+		gpios-states = <0>;
+		states = <3300000 0 1800000 1>;
+	};
+
+        clk_ext_camera: clk_ext_camera {
+                compatible = "fixed-clock";
+                #clock-cells = <0>;
+                clock-frequency = <24000000>;
+        };
+	
+	edp_refclk: edp_refclk {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <19200000>;
+	};
+	
+	dp-out {
+		compatible = "dp-connector";
+		label = "miniDP";
+
+		port {
+			dp_con_out: endpoint {
+				remote-endpoint = <&tc358767_out>;
+			};
+		};
+	};
+	
+	udmabuf@0 {
+		compatible = "ikwzm,u-dma-buf";
+		device-name = "udmabuf0";
+		minor-number = <0>;
+		size = <0x4000000>; // 64MiB
+		dma-coherent;
+		memory-region = <&image_buf0>;
+	};
+	
+	soc: soc {
+		sci0: serial@12800c00 {
+			compatible = "renesas,r9a09g056-rz-rsci", "renesas,rz-rsci";
+			reg = <0 0x12800c00 0 0x400>;
+			interrupts = <GIC_SPI 114 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 115 IRQ_TYPE_EDGE_RISING>,
+				     <GIC_SPI 116 IRQ_TYPE_EDGE_RISING>,
+				     <GIC_SPI 117 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "eri", "rxi", "txi", "tei";
+			clocks = <&cpg CPG_MOD R9A09G056_RSCI0_PCLK>,
+				<&cpg CPG_MOD R9A09G056_RSCI0_TCLK>;
+			clock-names = "fck", "tclk";
+			power-domains = <&cpg>;
+			resets = <&cpg R9A09G056_RSCI0_PRESETN>;
+			status = "disabled";
+		};
+
+		sci1: serial@12801000 {
+			compatible = "renesas,r9a09g056-rz-rsci", "renesas,rz-rsci";
+			reg = <0 0x12801000 0 0x400>;
+			interrupts = <GIC_SPI 120 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 121 IRQ_TYPE_EDGE_RISING>,
+				     <GIC_SPI 122 IRQ_TYPE_EDGE_RISING>,
+				     <GIC_SPI 123 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "eri", "rxi", "txi", "tei";
+			clocks = <&cpg CPG_MOD R9A09G056_RSCI1_PCLK>,
+				<&cpg CPG_MOD R9A09G056_RSCI1_TCLK>;
+			clock-names = "fck", "tclk";
+			power-domains = <&cpg>;
+			resets = <&cpg R9A09G056_RSCI1_PRESETN>;
+			status = "disabled";
+		};
+	};
+};
+
+&pinctrl {
+
+        i2c0_pins: i2c0 {
+                pinmux = <RZG2L_PORT_PINMUX(3, 0, 1)>, /* I2C0_SDA */
+                         <RZG2L_PORT_PINMUX(3, 1, 1)>; /* I2C0_SCL */
+        };
+
+        i2c1_pins: i2c1 {
+                pinmux = <RZG2L_PORT_PINMUX(3, 2, 1)>, /* I2C1_SDA */
+                         <RZG2L_PORT_PINMUX(3, 3, 1)>; /* I2C1_SCL */
+        };
+        
+        i2c2_pins: i2c2 {
+		pinmux = <RZG2L_PORT_PINMUX(2, 0, 4)>, /* I2C2_SDA */
+			 <RZG2L_PORT_PINMUX(2, 1, 4)>; /* I2C2_SCL */
+	};
+
+	scif0_pins: scif0 {
+		pins =  "SCIF_RXD", "SCIF_TXD";
+	};
+
+	sd0_pwr_en {
+		gpio-hog;
+		gpios = <RZG2L_GPIO(10, 1) GPIO_ACTIVE_HIGH>;
+		output-high;
+		line-name = "sd0_pwr_en";
+	};
+	
+	/* Support pinctrl for SD function of SDHI0 */
+	sdhi0_pins: sd0 {
+		sd0_mux {
+			pinmux = <RZG2L_PORT_PINMUX(10, 5, 15)>; /* SD0_CD */
+		};
+	};
+	
+	sci0_pins: sci0 {
+		pinmux = <RZG2L_PORT_PINMUX(5, 0, 1)>, /* SCI0_TXD_MOSI_SDA */
+			 <RZG2L_PORT_PINMUX(5, 1, 1)>; /* SCI0_RXD_MISO_SCL */
+	};
+
+	sci1_pins: sci1 {
+		pinmux = <RZG2L_PORT_PINMUX(5, 2, 1)>, /* SCI1_TXD_MOSI_SDA */
+			 <RZG2L_PORT_PINMUX(5, 3, 1)>; /* SCI1_RXD_MISO_SCL */
+	};
+};
+
+&du {
+	status = "okay";
+};
+
+&dsi0 {
+	status = "okay";
+
+	ports {
+		port@1 {
+			reg = <1>;
+			dsi0_out: endpoint {
+				remote-endpoint = <&tc358767_in>;
+				data-lanes = <0 1 2 3>;
+			};
+		};
+	};
+};
+
+&extal_clk {
+	clock-frequency = <24000000>;
+};
+
+&i2c0 {
+        pinctrl-0 = <&i2c0_pins>;
+        pinctrl-names = "default";
+
+        status = "okay";
+        clock-frequency = <400000>;
+        
+        tevs_csi20: tevs_csi20@48 {
+		compatible = "tn,tevs";
+		reg = <0x48>;
+
+		continuous-clock = <0>;
+		data-lanes = <2>;
+		data-frequency = <800>;
+		//hw-reset; // keep the camera off, when unused
+		
+		host-pwdn-gpios = <&pinctrl RZG2L_GPIO(3, 5) GPIO_ACTIVE_HIGH>;
+		reset-gpios = <&pinctrl RZG2L_GPIO(3, 4) GPIO_ACTIVE_LOW>;
+
+		port {
+			tevs_to_csi20: endpoint {
+				clock-lanes = <0>;
+				data-lanes = <1 2>;
+				remote-endpoint = <&csi20_in>;
+			};
+		};
+	};  
+};
+
+&i2c1 {
+        pinctrl-0 = <&i2c1_pins>;
+        pinctrl-names = "default";
+
+        status = "okay";
+        clock-frequency = <400000>;
+
+        tevs_csi21: tevs_csi21@48 {
+		compatible = "tn,tevs";
+		reg = <0x48>;
+
+		continuous-clock = <0>;
+		data-lanes = <2>;
+		data-frequency = <800>;
+		//hw-reset; // keep the camera off, when unused
+		
+		host-pwdn-gpios = <&pinctrl RZG2L_GPIO(3, 7) GPIO_ACTIVE_HIGH>;
+		reset-gpios = <&pinctrl RZG2L_GPIO(3, 6) GPIO_ACTIVE_LOW>;
+
+		port {
+			tevs_to_csi21: endpoint {
+				clock-lanes = <0>;
+				data-lanes = <1 2>;
+				remote-endpoint = <&csi21_in>;
+			};
+		};
+	};
+};
+
+&i2c2 {
+	pinctrl-0 = <&i2c2_pins>;
+	pinctrl-names = "default";
+
+	status = "okay";
+
+	tc358767: dp-bridge@68 {
+		compatible = "toshiba,tc358767";
+		reg = <0x68>;
+		clock-names = "ref";
+                clocks = <&edp_refclk>;
+                toshiba,hpd-pin = <0>;
+                interrupts = <RZG2L_GPIO(10, 2) IRQ_TYPE_LEVEL_LOW>;
+                reset-gpios = <&pinctrl RZG2L_GPIO(10, 6) GPIO_ACTIVE_LOW>;
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+				tc358767_in: endpoint {
+					remote-endpoint = <&dsi0_out>;
+					data-lanes = <0 1 2 3>;
+				};
+			};
+
+			port@2 {
+				reg = <2>;
+				tc358767_out: endpoint {
+					remote-endpoint = <&dp_con_out>;
+				};
+			};
+		};
+	};
+};
+
+&ostm2 {
+	status = "okay";
+};
+
+&ostm3 {
+	status = "okay";
+};
+
+&scif0 {
+	pinctrl-0 = <&scif0_pins>;
+	pinctrl-names = "default";
+
+	status = "okay";
+};
+
+&sdhi0 {
+	pinctrl-0 = <&sdhi0_pins>;
+	pinctrl-names = "default";
+
+	vmmc-supply = <&reg_3p3v>;
+	vqmmc-supply = <&vccq_sdhi0>;
+
+	bus-width = <4>;
+	sd-uhs-sdr50;
+	sd-uhs-sdr104;
+	status = "okay";
+};
+
+&eth0 {
+	phy-handle = <&phy0>;
+	phy-mode = "rgmii-id";
+	status = "okay";
+
+	mdio {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		phy0: ethernet-phy@0 {
+			compatible = "ethernet-phy-id0022.1640",
+				     "ethernet-phy-ieee802.3-c22";
+			reg = <0>;
+			rxc-skew-psec = <1400>;
+			txc-skew-psec = <1400>;
+			rxdv-skew-psec = <0>;
+			txdv-skew-psec = <0>;
+			rxd0-skew-psec = <0>;
+			rxd1-skew-psec = <0>;
+			rxd2-skew-psec = <0>;
+			rxd3-skew-psec = <0>;
+			txd0-skew-psec = <0>;
+			txd1-skew-psec = <0>;
+			txd2-skew-psec = <0>;
+			txd3-skew-psec = <0>;
+		};
+	};
+};
+
+&xhci0 {
+	memory-region = <&global_cma>;
+	status = "okay";
+};
+
+&usb20phyrst {
+	status = "okay";
+};
+
+&ohci0 {
+	memory-region = <&global_cma>;
+
+	dr_mode = "otg";
+	status = "okay";
+};
+
+&ehci0 {
+	memory-region = <&global_cma>;
+
+	dr_mode = "otg";
+	status = "okay";
+};
+
+&hsusb {
+	dr_mode = "otg";
+	status = "okay";
+};
+
+&usb2_phy0 {
+	status = "okay";
+};
+
+&cru0 {
+       status = "okay";
+};
+
+&csi20 {
+	status = "okay";
+
+	ports {
+		port {
+			csi20_in: endpoint {
+				clock-lanes = <0>;
+				data-lanes = <1 2>;
+				remote-endpoint = <&tevs_to_csi20>;
+			};
+		};
+	};
+};
+
+&cru1 {
+       status = "okay";
+};
+
+&csi21 {
+       status = "okay";
+
+       ports {
+               port {
+                       csi21_in: endpoint {
+                               clock-lanes = <0>;
+                                data-lanes = <1 2>;
+                                remote-endpoint = <&tevs_to_csi21>;
+                       };
+               };
+       };
+};
+
+&wdt1 {
+        status = "okay";
+};
+
+&rtc {
+        status = "okay";
+};
+
+&cmtw0 {
+        status = "okay";
+};
+
+&pcie0 {
+	/* Map all possible DDR as inbound ranges */
+	dma-ranges = <0x42000000 0 0x40000000 0 0x40000000 0x2 0x00000000>;
+
+	status = "okay";
+};
+
+&adc0 {
+	status = "okay";
+};
+
+&adc1 {
+	status = "okay";
+};
+
+&adc2 {
+	status = "okay";
+};
+
+&drpai0 {
+	memory-region = <&drp_reserved>;
+	image-memory-region = <&image_buf0>;
+	memory-shared-for-drpai-ext-cont = <&shared_drp_reserved>;
+	status = "okay";
+};
+		
+&sci0 {
+	pinctrl-0 = <&sci0_pins>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+&sci1 {
+	pinctrl-0 = <&sci1_pins>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+

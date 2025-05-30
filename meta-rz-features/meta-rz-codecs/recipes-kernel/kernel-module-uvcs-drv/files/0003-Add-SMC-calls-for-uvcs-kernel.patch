@@ -1,0 +1,64 @@
+From b80871f37d4775503d4d6e84c8ed86c91261e7ec Mon Sep 17 00:00:00 2001
+From: Kiet Pham <kiet.pham.xb@renesas.com>
+Date: Mon, 31 Oct 2022 15:10:23 +0700
+Subject: [PATCH] recipes-codec: Add SMC calls for uvcs kernel
+
+Add SMC calls for uvcs kernel
+
+Signed-off-by: Canh Dao <canh.dao.ct@renesas.com>
+---
+ include/uvcs_ioctl.h |  1 +
+ src/lkm/uvcs_lkm.c   | 11 +++++++++++
+ 2 files changed, 12 insertions(+)
+
+diff --git a/include/uvcs_ioctl.h b/include/uvcs_ioctl.h
+index ee51a05..f0a4283 100644
+--- a/include/uvcs_ioctl.h
++++ b/include/uvcs_ioctl.h
+@@ -72,6 +72,7 @@
+ #define UVCS_IOCTL_GET_IP_CAPABILITY	_IOR(UVCS_IOCTL_BASE, 0x15, void *)
+ #define UVCS_IOCTL_SET_USE_IP			_IOW(UVCS_IOCTL_BASE, 0x20, uint)
+ #define UVCS_IOCTL_CLR_USE_IP			_IO(UVCS_IOCTL_BASE, 0x21)
++#define UVCS_IOCTL_GET_SMC                      _IOR(UVCS_IOCTL_BASE, 0x88, void *)
+ 
+ #ifdef CONFIG_COMPAT
+ #define COMPAT_UVCS_IOCTL_SET_PREEMPT_MODE	_IOW(UVCS_IOCTL_BASE, 0x01, compat_uint_t)
+diff --git a/src/lkm/uvcs_lkm.c b/src/lkm/uvcs_lkm.c
+index 82eed05..5a96dbe 100644
+--- a/src/lkm/uvcs_lkm.c
++++ b/src/lkm/uvcs_lkm.c
+@@ -88,6 +88,8 @@
+ #include "uvcs_cmn.h"
+ #include "uvcs_ioctl.h"
+ #include "uvcs_lkm_internal.h"
++#include <linux/arm-smccc.h>
++#include <uapi/linux/psci.h>
+ 
+ /******************************************************************************/
+ /*                    MODULE PARAMETERS                                       */
+@@ -419,6 +421,7 @@ static long uvcs_ioctl(struct file *filp, unsigned int cmd,
+ 							unsigned long arg)
+ {
+ 	struct uvcs_hdl_info *hdl = filp->private_data;
++	struct arm_smccc_res local_res;
+ 	long result = 0;
+ 	UVCS_RESULT uvcs_ret;
+ 
+@@ -464,6 +467,14 @@ static long uvcs_ioctl(struct file *filp, unsigned int cmd,
+ 		}
+ 		break;
+ 
++        case UVCS_IOCTL_GET_SMC:
++		arm_smccc_smc(0x82000010, 0, 0, 0, 0, 0, 0, 0, &local_res);
++		if (copy_to_user((void __user *)arg,
++                                        &local_res.a0, sizeof(local_res.a0))) {
++                        result = -EFAULT;
++                }
++                break;
++
+ 	case UVCS_IOCTL_GET_IP_CAPABILITY:
+ 		if (copy_to_user((void __user *)arg,
+ 					&hdl->drv->ip_cap, sizeof(UVCS_CMN_IP_CAPABILITY_T))) {
+-- 
+2.25.1
+

@@ -1,0 +1,71 @@
+From 30da6b81e247702a1e2ac1cecd58410aa9a94417 Mon Sep 17 00:00:00 2001
+From: Your Name <you@example.com>
+Date: Thu, 25 Jul 2024 17:34:16 +0900
+Subject: [PATCH 1/2] add drp prop to devicetree
+
+---
+ arch/arm64/boot/dts/renesas/r9a09g056.dtsi      | 10 ++++++++++
+ .../arm64/boot/dts/renesas/r9a09g056n44-dev.dts | 17 +++++++++++++++++
+ .../arm64/boot/dts/renesas/r9a09g056n44-evk.dts | 17 +++++++++++++++++
+ 3 files changed, 44 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/renesas/r9a09g056.dtsi b/arch/arm64/boot/dts/renesas/r9a09g056.dtsi
+index 1b3aa1141aee..2be2b788f8ec 100644
+--- a/arch/arm64/boot/dts/renesas/r9a09g056.dtsi
++++ b/arch/arm64/boot/dts/renesas/r9a09g056.dtsi
+@@ -1268,6 +1268,16 @@ wdt3: watchdog@13000400 {
+ 			status = "disabled";
+ 		};
+ 
++		drp1: drp1@17000000 {
++			compatible = "renesas,rzv2n-drp";
++			reg =  <0 0x17000000 0 0x1000000>,
++					<0 0x16800000 0 0x400000>;
++			interrupts = <GIC_SPI 914 IRQ_TYPE_LEVEL_HIGH>,
++							<GIC_SPI 915 IRQ_TYPE_LEVEL_HIGH>;
++			resets = <&cpg R9A09G056_DRPAI_ARESETN>;
++			status = "disabled";
++		};
++
+ 		rtc: rtc@11c00800 {
+ 			compatible = "renesas,r9a09g056-rtc", "renesas,rtca-3";
+ 			reg = <0 0x11C00800 0 0x400>;
+diff --git a/arch/arm64/boot/dts/renesas/r9a09g056n44-dev.dts b/arch/arm64/boot/dts/renesas/r9a09g056n44-dev.dts
+index 2ca7e6ad3924..414665bf7895 100644
+--- a/arch/arm64/boot/dts/renesas/r9a09g056n44-dev.dts
++++ b/arch/arm64/boot/dts/renesas/r9a09g056n44-dev.dts
+@@ -631,6 +641,13 @@ &wdt1 {
+ 	status = "okay";
+ };
+ 
++&drp1 {
++    memory-region = <&drp_codec>;
++    memory-oca-region = <&opencva_reserved>;
++    memory-shared-for-drpai-ext-cont = <&shared_drp_reserved>;
++    status = "okay";
++};
++
+ &rtc {
+ 	status = "okay";
+ };
+diff --git a/arch/arm64/boot/dts/renesas/r9a09g056n44-evk.dts b/arch/arm64/boot/dts/renesas/r9a09g056n44-evk.dts
+index 418244ab0bf6..56f2b197c7ce 100644
+--- a/arch/arm64/boot/dts/renesas/r9a09g056n44-evk.dts
++++ b/arch/arm64/boot/dts/renesas/r9a09g056n44-evk.dts
+@@ -616,6 +626,13 @@ &wdt1 {
+         status = "okay";
+ };
+ 
++&drp1 {
++    memory-region = <&drp_codec>;
++    memory-oca-region = <&opencva_reserved>;
++    memory-shared-for-drpai-ext-cont = <&shared_drp_reserved>;
++    status = "okay";
++};
++
+ &rtc {
+         status = "okay";
+ };
+-- 
+2.25.1
+

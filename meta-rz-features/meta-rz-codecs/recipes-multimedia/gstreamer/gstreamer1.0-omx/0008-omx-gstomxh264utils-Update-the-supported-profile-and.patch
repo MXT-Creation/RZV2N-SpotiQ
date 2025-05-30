@@ -1,0 +1,67 @@
+From 95e9d65ea4057269ecf88959f714e38f1a3cc38e Mon Sep 17 00:00:00 2001
+From: Hung Thanh Huynh <hung.huynh.wz@renesas.com>
+Date: Thu, 21 Sep 2023 19:37:44 +0900
+Subject: [PATCH 08/17] omx: gstomxh264utils: Update the supported profile and
+ level for RZ/V2H
+
+RZ/V2H support different with defaults, we should update it to avoid
+setting wrong to OMX library.
+
+Signed-off-by: Hung Thanh Huynh <hung.huynh.wz@renesas.com>
+---
+ omx/gstomxh264utils.c | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/omx/gstomxh264utils.c b/omx/gstomxh264utils.c
+index ba29211..a4ea2e9 100644
+--- a/omx/gstomxh264utils.c
++++ b/omx/gstomxh264utils.c
+@@ -24,6 +24,10 @@
+ 
+ #include "gstomxh264utils.h"
+ 
++#if defined(USE_TARGET_DEVICE_RZV2H) && defined(HAVE_H264_EXT)
++#include <OMXR_Extension_h264.h>
++#endif
++
+ typedef struct
+ {
+   const gchar *profile;
+@@ -35,6 +39,8 @@ static const H264ProfileMapping h264_profiles[] = {
+ #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+   {"constrained-baseline",
+       (OMX_VIDEO_AVCPROFILETYPE) OMX_ALG_VIDEO_AVCProfileConstrainedBaseline},
++#elif defined(USE_TARGET_DEVICE_RZV2H) && defined(HAVE_H264_EXT)
++  {"constrained-baseline", OMXR_MC_VIDEO_AVCProfileConstrainedBaseline},
+ #else
+   {"constrained-baseline", OMX_VIDEO_AVCProfileBaseline},
+ #endif
+@@ -51,6 +57,9 @@ static const H264ProfileMapping h264_profiles[] = {
+       (OMX_VIDEO_AVCPROFILETYPE) OMX_ALG_VIDEO_AVCProfileHigh10_Intra},
+   {"high-4:2:2-intra",
+       (OMX_VIDEO_AVCPROFILETYPE) OMX_ALG_VIDEO_AVCProfileHigh422_Intra},
++#elif defined(USE_TARGET_DEVICE_RZV2H) && defined(HAVE_H264_EXT)
++  {"progressive-high", OMXR_MC_VIDEO_AVCProfileProgressiveHigh},
++  {"constrained-high", OMXR_MC_VIDEO_AVCProfileConstrainedHigh},
+ #endif
+ };
+ 
+@@ -111,6 +120,7 @@ gst_omx_h264_utils_get_level_from_str (const gchar * level)
+     return OMX_VIDEO_AVCLevel41;
+   } else if (g_str_equal (level, "4.2")) {
+     return OMX_VIDEO_AVCLevel42;
++#ifndef USE_TARGET_DEVICE_RZV2H
+   } else if (g_str_equal (level, "5")) {
+     return OMX_VIDEO_AVCLevel5;
+   } else if (g_str_equal (level, "5.1")) {
+@@ -124,6 +134,7 @@ gst_omx_h264_utils_get_level_from_str (const gchar * level)
+     return (OMX_VIDEO_AVCLEVELTYPE) OMX_ALG_VIDEO_AVCLevel61;
+   } else if (g_str_equal (level, "6.2")) {
+     return (OMX_VIDEO_AVCLEVELTYPE) OMX_ALG_VIDEO_AVCLevel62;
++#endif
+ #endif
+   }
+ 
+-- 
+2.25.1
+

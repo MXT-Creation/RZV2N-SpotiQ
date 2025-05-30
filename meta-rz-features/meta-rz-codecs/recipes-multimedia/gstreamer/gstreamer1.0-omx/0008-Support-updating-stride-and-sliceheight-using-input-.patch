@@ -1,0 +1,50 @@
+From a62617f23fd0a27906b773848b4e4782996bcec9 Mon Sep 17 00:00:00 2001
+From: trungvanle <trung.le.xk@renesas.com>
+Date: Tue, 5 Mar 2024 16:15:54 +0700
+Subject: [PATCH] Support updating stride and sliceheight using input buffer
+ metadata
+
+When using vspmfilter as upstream, the stride of output from vspmfilter may
+round up due to ISU limitations. However, omxh264enc retrieves information from
+caps and sets frame width as stride to input port that is not updated. This results
+in wrong display output.
+To solve this issue, we need to update stride and sliceheight based on input buffer
+metadata provided from upstream when enabling component.
+---
+ omx/gstomxvideoenc.c | 4 ----
+ 1 file changed, 4 deletions(-)
+
+diff --git a/omx/gstomxvideoenc.c b/omx/gstomxvideoenc.c
+index 5360518..211b81b 100644
+--- a/omx/gstomxvideoenc.c
++++ b/omx/gstomxvideoenc.c
+@@ -2082,7 +2082,6 @@ gst_omx_video_enc_ensure_nb_in_buffers (GstOMXVideoEnc * self)
+   return TRUE;
+ }
+ 
+-#ifndef USE_OMX_TARGET_RCAR
+ static gboolean
+ gst_omx_video_enc_configure_input_buffer (GstOMXVideoEnc * self,
+     GstBuffer * input)
+@@ -2115,7 +2114,6 @@ gst_omx_video_enc_configure_input_buffer (GstOMXVideoEnc * self,
+   return gst_omx_video_enc_update_input_port (self, port_def, stride,
+       slice_height);
+ }
+-#endif
+ 
+ static gboolean
+ gst_omx_video_enc_allocate_in_buffers (GstOMXVideoEnc * self)
+@@ -2418,10 +2416,8 @@ gst_omx_video_enc_enable (GstOMXVideoEnc * self, GstBuffer * input)
+   }
+ 
+   if (!self->in_pool_used) {
+-#ifndef USE_OMX_TARGET_RCAR
+     if (!gst_omx_video_enc_configure_input_buffer (self, input))
+       return FALSE;
+-#endif
+ 
+     self->input_allocation = gst_omx_video_enc_pick_input_allocation_mode (self,
+         input);
+-- 
+2.17.1
+

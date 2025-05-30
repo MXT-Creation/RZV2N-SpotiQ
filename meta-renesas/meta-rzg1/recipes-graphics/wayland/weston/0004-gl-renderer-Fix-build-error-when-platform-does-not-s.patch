@@ -1,0 +1,33 @@
+From d36fce48d21e436b643a91b8bec5cdd23c0191dc Mon Sep 17 00:00:00 2001
+From: Hung Tran <hung.tran.jy@renesas.com>
+Date: Wed, 6 Sep 2023 12:22:14 +0000
+Subject: [PATCH] gl-renderer: Fix build error when platform does not support
+ SETDAMAGEREGION
+
+SETDAMAGEREGION is an extension of EGL, and there is chance that current
+platform does not support this extension.
+gl-renderer can still run without this extension.
+
+Signed-off-by: Hung Tran <hung.tran.jy@renesas.com>
+---
+ libweston/renderer-gl/gl-renderer-internal.h | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/libweston/renderer-gl/gl-renderer-internal.h b/libweston/renderer-gl/gl-renderer-internal.h
+index 00f617a..9f08a94 100644
+--- a/libweston/renderer-gl/gl-renderer-internal.h
++++ b/libweston/renderer-gl/gl-renderer-internal.h
+@@ -40,6 +40,10 @@ struct gl_shader {
+ 	const char *vertex_source, *fragment_source;
+ };
+ 
++#ifndef PFNEGLSETDAMAGEREGIONKHRPROC
++typedef EGLBoolean (EGLAPIENTRYP PFNEGLSETDAMAGEREGIONKHRPROC) (EGLDisplay dpy, EGLSurface surface, EGLint *rects, EGLint n_rects);
++#endif
++
+ struct gl_renderer {
+ 	struct weston_renderer base;
+ 	bool fragment_shader_debug;
+-- 
+2.25.1
+

@@ -1,0 +1,266 @@
+From 7417ed5e189e03c76bcc4820f82179e7433ea14b Mon Sep 17 00:00:00 2001
+From: Sang Ngo <sang.ngo.yf@renesas.com>
+Date: Wed, 24 Apr 2024 11:10:54 +0700
+Subject: [PATCH] videodec: Re-factor calculate number of output buffer for
+ h264 and h265
+
+Number of output buffer should be fit with current level of video in order
+to have the good decode experience.
+
+Signed-off-by: Hung Thanh Huynh <hung.huynh.wz@renesas.com>
+---
+ omx/gstomxh264utils.c | 42 +++++++++++++++++++++++++++
+ omx/gstomxh264utils.h |  1 +
+ omx/gstomxh265utils.c | 37 ++++++++++++++++++++++++
+ omx/gstomxh265utils.h |  1 +
+ omx/gstomxvideodec.c  | 66 +++++++++++++++++++++++++++++++++++++++++--
+ 5 files changed, 145 insertions(+), 2 deletions(-)
+
+diff --git a/omx/gstomxh264utils.c b/omx/gstomxh264utils.c
+index a4ea2e9..3298655 100644
+--- a/omx/gstomxh264utils.c
++++ b/omx/gstomxh264utils.c
+@@ -34,6 +34,13 @@ typedef struct
+   OMX_VIDEO_AVCPROFILETYPE e;
+ } H264ProfileMapping;
+ 
++typedef struct
++{
++  const gchar *level;
++  guint MaxFS;
++  guint MaxDpbMbs;
++} H264LevelLimit;
++
+ static const H264ProfileMapping h264_profiles[] = {
+   {"baseline", OMX_VIDEO_AVCProfileBaseline},
+ #ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
+@@ -63,6 +70,28 @@ static const H264ProfileMapping h264_profiles[] = {
+ #endif
+ };
+ 
++static const H264LevelLimit h264_level_limit[] = {
++  /* level,   MaxFS,    MaxDpbMbs                           */
++  { "0",     36864u,    184320u },  /* OTHER_LEVEL */
++  { "1",        99u,       396u },  /* level 1.0 */
++  { "1b",       99u,       396u },  /* level 1b */
++  { "1.1",     396u,       900u },  /* level 1.1 */
++  { "1.2",     396u,      2376u },  /* level 1.2 */
++  { "1.3",     396u,      2376u },  /* level 1.3 */
++  { "2",       396u,      2376u },  /* level 2.0 */
++  { "2.1",     792u,      4752u },  /* level 2.1 */
++  { "2.2",    1620u,      8100u },  /* level 2.2 */
++  { "3",      1620u,      8100u },  /* level 3.0 */
++  { "3.1",    3600u,     18000u },  /* level 3.1 */
++  { "3.2",    5120u,     20480u },  /* level 3.2 */
++  { "4",      8192u,     32768u },  /* level 4.0 */
++  { "4.1",    8192u,     32768u },  /* level 4.1 */
++  { "4.2",    8704u,     34816u },  /* level 4.2 */
++  { "5",     22080u,    110400u },  /* level 5.0 */
++  { "5.1",   36864u,    184320u },  /* level 5.1 */
++  { "5.2",   36864u,    184320u }   /* level 5.2 */
++};
++
+ OMX_VIDEO_AVCPROFILETYPE
+ gst_omx_h264_utils_get_profile_from_str (const gchar * profile)
+ {
+@@ -140,3 +169,16 @@ gst_omx_h264_utils_get_level_from_str (const gchar * level)
+ 
+   return OMX_VIDEO_AVCLevelMax;
+ }
++
++guint
++gst_omx_h264_utils_get_maxdpbmbs(const gchar *level)
++{
++  guint i;
++
++  for (i = 0; i < G_N_ELEMENTS (h264_level_limit); i++) {
++    if (g_str_equal (level, h264_level_limit[i].level))
++      return h264_level_limit[i].MaxDpbMbs;
++  }
++
++  return h264_level_limit[0].MaxDpbMbs;
++}
+diff --git a/omx/gstomxh264utils.h b/omx/gstomxh264utils.h
+index e5c35e4..7a3908e 100644
+--- a/omx/gstomxh264utils.h
++++ b/omx/gstomxh264utils.h
+@@ -31,6 +31,7 @@ OMX_VIDEO_AVCLEVELTYPE gst_omx_h264_utils_get_level_from_str (const gchar *
+     level);
+ 
+ const gchar * gst_omx_h264_utils_get_profile_from_enum (OMX_VIDEO_AVCPROFILETYPE e);
++guint gst_omx_h264_utils_get_maxdpbmbs(const gchar *level);
+ 
+ G_END_DECLS
+ #endif /* __GST_OMX_H264_UTILS_H__ */
+diff --git a/omx/gstomxh265utils.c b/omx/gstomxh265utils.c
+index 8bf81da..44f3eff 100644
+--- a/omx/gstomxh265utils.c
++++ b/omx/gstomxh265utils.c
+@@ -31,6 +31,12 @@ typedef struct
+   OMX_VIDEO_HEVCPROFILETYPE e;
+ } H265ProfileMapping;
+ 
++typedef struct
++{
++  const gchar *level;
++  guint MaxLumaPS;
++} H265LevelLimit;
++
+ static const H265ProfileMapping h265_profiles[] = {
+   {"main", OMX_VIDEO_HEVCProfileMain},
+   {"main-10", OMX_VIDEO_HEVCProfileMain10},
+@@ -59,6 +65,24 @@ static const H265ProfileMapping h265_profiles[] = {
+ #endif
+ };
+ 
++static const H265LevelLimit h265_level_limit[] = {
++  /* level_idc,MaxLumaPS, */ /* see Table A-1 */
++  { "0",         8912896, },
++  { "1",           36864, },
++  { "2",          122880, },
++  { "2.1",        245760, },
++  { "3",          552960, },
++  { "3.1",        983040, },
++  { "4",         2228224, },
++  { "4.1",       2228224, },
++  { "5",         8912896, },
++  { "5.1",       8912896, },
++  { "5.2",       8912896, },
++  { "6",        35651584, },
++  { "6.1",      35651584, },
++  { "6.2",      35651584, }
++};
++
+ OMX_VIDEO_HEVCPROFILETYPE
+ gst_omx_h265_utils_get_profile_from_str (const gchar * profile)
+ {
+@@ -136,3 +160,16 @@ gst_omx_h265_utils_get_level_from_str (const gchar * level, const gchar * tier)
+ 
+   return OMX_VIDEO_HEVCLevelUnknown;
+ }
++
++guint
++gst_omx_h265_utils_get_max_luma_ps (const gchar * level)
++{
++  guint i;
++
++  for (i = 0; i < G_N_ELEMENTS (h265_level_limit); i++) {
++    if (g_str_equal (level, h265_level_limit[i].level))
++      return h265_level_limit[i].MaxLumaPS;
++  }
++
++  return h265_level_limit[0].MaxLumaPS;
++}
+diff --git a/omx/gstomxh265utils.h b/omx/gstomxh265utils.h
+index 1987a32..e12e490 100644
+--- a/omx/gstomxh265utils.h
++++ b/omx/gstomxh265utils.h
+@@ -32,6 +32,7 @@ OMX_VIDEO_HEVCLEVELTYPE gst_omx_h265_utils_get_level_from_str (const gchar *
+     level, const gchar * tier);
+ 
+ const gchar * gst_omx_h265_utils_get_profile_from_enum (OMX_VIDEO_HEVCPROFILETYPE e);
++guint gst_omx_h265_utils_get_max_luma_ps(const gchar *level);
+ 
+ G_END_DECLS
+ #endif /* __GST_OMX_H265_UTILS_H__ */
+diff --git a/omx/gstomxvideodec.c b/omx/gstomxvideodec.c
+index 7276f7d..350821d 100644
+--- a/omx/gstomxvideodec.c
++++ b/omx/gstomxvideodec.c
+@@ -57,6 +57,16 @@
+ #include "OMXR_Extension_vdcmn.h"
+ #endif
+ #include "gstomxwmvdec.h"
++#ifdef USE_OMX_TARGET_RCAR
++#include "gstomxh264dec.h"
++#include "gstomxh265dec.h"
++#include "gstomxh264utils.h"
++#include "gstomxh265utils.h"
++
++#define MAX_DPB_BUFFERING       (16) /* Max number of DPB */
++#define MIN_DPB_BUFFERING_H264   (4) /* Min needed number of DPB for H264 */
++#define MAX_DPB_PICBUF_H265      (6) /* See A.4.2 */
++#endif
+ 
+ GST_DEBUG_CATEGORY_STATIC (gst_omx_video_dec_debug_category);
+ #define GST_CAT_DEFAULT gst_omx_video_dec_debug_category
+@@ -927,8 +937,13 @@ gst_omx_video_dec_allocate_output_buffers (GstOMXVideoDec * self)
+       goto done;
+     }
+ 
+-    /* Need at least 4 buffers for anything meaningful */
+-    min = MAX (min + port->port_def.nBufferCountMin, 4);
++    if (self->bypass) {
++      /* Request maximum buffer for decoded picture */
++      min = MAX (min + port->port_def.nBufferCountMin, port->port_def.nBufferCountActual);
++    } else {
++      /* Need at least 4 buffers for anything meaningful */
++      min = MAX (min + port->port_def.nBufferCountMin, 4);
++    }
+     if (max == 0) {
+       max = min;
+     } else if (max < min) {
+@@ -3058,6 +3073,11 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
+ #ifdef USE_OMX_TARGET_RCAR
+   if (!self->disabled) {
+     OMX_PARAM_PORTDEFINITIONTYPE out_port_def;
++    const gchar *level_string;
++    GstStructure *s;
++
++    s = gst_caps_get_structure (state->caps, 0);
++    level_string = gst_structure_get_string (s, "level");
+ 
+     /* Initialize default output allocation align for page size
+      * Choose 192x192 for VP9 Decoder and 128x128 for other Decoders
+@@ -3086,6 +3106,48 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
+         out_port_def.nBufferSize =
+             (out_port_def.format.video.nStride *
+             out_port_def.format.video.nSliceHeight * 3 / 2);
++
++        if (GST_IS_OMX_H264_DEC (self)) {
++         guint MaxDpbMbs;
++          guint Num_mbs =
++            (GST_ROUND_UP_16(out_port_def.format.video.nFrameWidth) / 16) *
++            (GST_ROUND_UP_16(out_port_def.format.video.nFrameHeight) / 16);
++
++          if (!level_string)
++            level_string = "4.2";
++
++         MaxDpbMbs = gst_omx_h264_utils_get_maxdpbmbs(level_string);
++          out_port_def.nBufferCountActual =
++            MIN (MAX (MaxDpbMbs / Num_mbs, MIN_DPB_BUFFERING_H264),
++                 MAX_DPB_BUFFERING);
++
++        }
++#if defined(HAVE_HEVC)
++        else if (GST_IS_OMX_H265_DEC (self)) {
++         guint MaxLumaPS;
++          guint PicSizeInSamplesY =
++            GST_ROUND_UP_32(out_port_def.format.video.nFrameWidth) *
++            GST_ROUND_UP_32(out_port_def.format.video.nFrameHeight);
++
++          if (!level_string)
++            level_string = "5";
++
++            MaxLumaPS = gst_omx_h265_utils_get_max_luma_ps(level_string);
++            if (PicSizeInSamplesY <= (MaxLumaPS >> 2))
++              out_port_def.nBufferCountActual =
++                MIN (MAX_DPB_PICBUF_H265 * 4, MAX_DPB_BUFFERING);
++            else if (PicSizeInSamplesY <= (MaxLumaPS >> 1))
++              out_port_def.nBufferCountActual =
++                MIN (MAX_DPB_PICBUF_H265 * 2, MAX_DPB_BUFFERING);
++            else if (PicSizeInSamplesY <= ((3 * MaxLumaPS) >> 2))
++              out_port_def.nBufferCountActual =
++                MIN ((MAX_DPB_PICBUF_H265 * 4) / 3, MAX_DPB_BUFFERING);
++            else
++              out_port_def.nBufferCountActual = MAX_DPB_PICBUF_H265;
++        }
++#endif
++        /* FillThisBuffer must be called one additional. */
++        out_port_def.nBufferCountActual++;
+       }
+     }
+ 
+-- 
+2.17.1
+

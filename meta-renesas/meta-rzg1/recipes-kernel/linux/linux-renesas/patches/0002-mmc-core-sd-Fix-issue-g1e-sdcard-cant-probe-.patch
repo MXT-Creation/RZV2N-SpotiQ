@@ -1,0 +1,67 @@
+From 9cd58fab150cfe9f6bd4cc0f5d72f40b7386526d Mon Sep 17 00:00:00 2001
+From: Sang Nguyen <sang.nguyen-hoang@banvien.com.vn>
+Date: Thu, 28 Sep 2023 16:35:38 +0700
+Subject: [PATCH] mmc: core: sd: Fix issue g1e sdcard can't probe
+ old version board
+
+Issue:
+mmc2: error -110 whilst initialising SD card
+
+Solution:
+  Instant mmc_set_signal_voltage to send CMD11 only if the request 
+is to switch the card to 1.8V signalling.
+
+Reference:
+  Commit f2119df6b7, 0797e5f145 in kernel v4.4
+
+Signed-off-by: Sang Nguyen <sang.nguyen-hoang@banvien.com.vn>
+---
+ drivers/mmc/core/sd.c | 18 ++++++++++++++++++
+ 1 file changed, 18 insertions(+)
+
+diff --git a/drivers/mmc/core/sd.c b/drivers/mmc/core/sd.c
+index 868b121..67c9cff 100644
+--- a/drivers/mmc/core/sd.c
++++ b/drivers/mmc/core/sd.c
+@@ -17,6 +17,7 @@
+ #include <linux/mmc/card.h>
+ #include <linux/mmc/mmc.h>
+ #include <linux/mmc/sd.h>
++#include <linux/sys_soc.h>
+ 
+ #include "core.h"
+ #include "card.h"
+@@ -792,6 +793,11 @@ struct device_type sd_type = {
+ 	.groups = sd_std_groups,
+ };
+ 
++static const struct soc_device_attribute sdcard_probe_issue[] = {
++	{ .soc_id = "r8a7745", },
++	{ /* sentinel */ }
++};
++
+ /*
+  * Fetch CID from card.
+  */
+@@ -855,6 +861,18 @@ int mmc_sd_get_cid(struct mmc_host *host, u32 ocr, u32 *cid, u32 *rocr)
+ 	 */
+ 	if (!mmc_host_is_spi(host) && (ocr & SD_OCR_S18R) &&
+ 	    rocr && (*rocr & SD_ROCR_S18A)) {
++		if (soc_device_match(sdcard_probe_issue)) {
++			/*
++			 * Send CMD11 only if the request is to switch the card to
++			 * 1.8V signalling.
++			 */
++			mmc_set_signal_voltage(host, MMC_SIGNAL_VOLTAGE_180);
++
++			/*
++			 * Wait 10 ms for switching the card to 1.8V be done.
++			 */
++			mmc_delay(10);
++		}
+ 		err = mmc_set_uhs_voltage(host, pocr);
+ 		if (err == -EAGAIN) {
+ 			retries--;
+-- 
+2.7.4
+

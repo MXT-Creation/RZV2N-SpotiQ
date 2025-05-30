@@ -1,0 +1,47 @@
+From 5c41d08def1ba4f3488a2fbde5057d54cf044556 Mon Sep 17 00:00:00 2001
+From: Hung Thanh Huynh <hung.huynh.wz@renesas.com>
+Date: Mon, 19 Feb 2024 17:03:47 +0900
+Subject: [PATCH 07/17] gstomx: Support Renesas HEVC Extension
+
+Using the adapter header for HEVC usage with extension defination of Renesas.
+Also when having HEVC Encoder, we need enable it in gst-omx initialization.
+
+Signed-off-by: Hung Thanh Huynh <hung.huynh.wz@renesas.com>
+---
+ omx/gstomx.c | 3 +++
+ omx/gstomx.h | 5 +++++
+ 2 files changed, 8 insertions(+)
+
+diff --git a/omx/gstomx.c b/omx/gstomx.c
+index 4e82fac..036417d 100644
+--- a/omx/gstomx.c
++++ b/omx/gstomx.c
+@@ -3434,6 +3434,9 @@ static const GGetTypeFunction types[] = {
+       , gst_omx_h265_enc_get_type, gst_omx_h265_dec_get_type
+ #elif USE_OMX_TARGET_RCAR
+       , gst_omx_h265_dec_get_type, gst_omx_vp9_dec_get_type
++#ifdef HAVE_HEVC_ENC
++      , gst_omx_h265_enc_get_type
++#endif
+ #endif
+   , gst_omx_wma_dec_get_type
+ };
+diff --git a/omx/gstomx.h b/omx/gstomx.h
+index 0115114..8a5bdc9 100644
+--- a/omx/gstomx.h
++++ b/omx/gstomx.h
+@@ -92,6 +92,11 @@
+ #include <OMX_OtherExt.h>
+ #endif
+ 
++#ifdef HAVE_HEVC_EXT
++#include <OMXR_IndexExt.h>
++#include <OMXR_VideoExt.h>
++#endif
++
+ #ifdef GST_OMX_STRUCT_PACKING
+ #pragma pack()
+ #endif
+-- 
+2.25.1
+

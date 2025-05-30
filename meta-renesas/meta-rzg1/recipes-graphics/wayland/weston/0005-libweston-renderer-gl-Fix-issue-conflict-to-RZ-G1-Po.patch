@@ -1,0 +1,41 @@
+From f6e395be3865daae8b7f41202ad91745148315e2 Mon Sep 17 00:00:00 2001
+From: Hao Bui <hao.bui.yg@renesas.com>
+Date: Thu, 17 Nov 2022 11:16:36 +0700
+Subject: [PATCH] libweston: renderer-gl: Fix issue conflict to RZ/G1 PowerVR
+ GFX library
+
+We meet an issue with old RZ/G1 PowerVR graphic library that cause
+Weston unable to choose appropriate EGL config. This patch workaround
+for it.
+
+Signed-off-by: Hao Bui <hao.bui.yg@renesas.com>
+---
+ libweston/renderer-gl/egl-glue.c | 6 ++----
+ 1 file changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/libweston/renderer-gl/egl-glue.c b/libweston/renderer-gl/egl-glue.c
+index d96efea..ccca593 100644
+--- a/libweston/renderer-gl/egl-glue.c
++++ b/libweston/renderer-gl/egl-glue.c
+@@ -260,8 +260,6 @@ egl_config_pixel_format_matches(struct gl_renderer *gr,
+ 		if (!eglGetConfigAttrib(gr->egl_display, config,
+ 					EGL_NATIVE_VISUAL_ID, &value))
+ 			return false;
+-
+-		return ((uint32_t)value) == pinfo->format;
+ 	}
+ 
+ 	for (i = 0; i < 4; i++) {
+@@ -344,8 +342,8 @@ egl_config_is_compatible(struct gl_renderer *gr,
+ 	if (!eglGetConfigAttrib(gr->egl_display, config,
+ 				EGL_SURFACE_TYPE, &value))
+ 		return false;
+-	if ((value & egl_surface_type) != egl_surface_type)
+-		return false;
++	if (value & egl_surface_type)
++		return true;
+ 
+ 	for (i = 0; i < pinfo_count; i++) {
+ 		if (egl_config_pixel_format_matches(gr, config, pinfo[i]))
+-- 
+2.7.4
