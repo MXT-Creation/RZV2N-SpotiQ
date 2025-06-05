@@ -1,0 +1,28 @@
+diff --git a/package.xml b/package.xml
+index 0372b9f..ad98202 100644
+--- a/package.xml
++++ b/package.xml
+@@ -22,11 +22,9 @@
+   <buildtool_depend>ament_cmake</buildtool_depend>
+     
+   <build_depend>eigen</build_depend>
+-  <build_depend>opengl</build_depend>
+   <build_depend>suitesparse</build_depend>
+   
+   <exec_depend>eigen</exec_depend>
+-  <exec_depend>opengl</exec_depend>
+   <exec_depend>suitesparse</exec_depend>
+   
+   <export>
+diff --git a/cmake_modules/Config.cmake.in b/cmake_modules/Config.cmake.in
+index d2913a1..d09dedb 100644
+--- a/cmake_modules/Config.cmake.in
++++ b/cmake_modules/Config.cmake.in
+@@ -1,7 +1,6 @@
+ include(CMakeFindDependencyMacro)
+ 
+ find_dependency(Eigen3)
+-find_dependency(OpenGL)
+ 
+ include("${CMAKE_CURRENT_LIST_DIR}/@G2O_TARGETS_EXPORT_NAME@.cmake")
+ 

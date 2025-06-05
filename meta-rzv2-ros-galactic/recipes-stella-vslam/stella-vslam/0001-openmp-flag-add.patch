@@ -1,0 +1,26 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index b2a9fe1..fc382c5 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -91,6 +91,21 @@ endif()
+ find_package(Threads REQUIRED)
+ 
+ # OpenMP
++string(FIND "${CMAKE_FIND_ROOT_PATH}" ";" SPIDX)
++string(SUBSTRING "${CMAKE_FIND_ROOT_PATH}" 0 ${SPIDX} DIR1)
++set(BINV "8.3.0")
++set(SYSARCH "aarch64-poky-linux")
++set(OMPI1 "${DIR1}/usr/include")
++set(OMPI2 "${DIR1}/usr/include/c++/${BINV}")
++set(OMPI4 "${DIR1}/usr/include/c++/${BINV}/${SYSARCH}")
++set(OMPI5 "${DIR1}/usr/lib64/${SYSARCH}/${BINV}/include")
++set(OMPINC "-I${OMPI1} -I${OMPI2} -I${OMPI4} -I${OMPI5}")
++set(LINKP "--sysroot=${DIR1} -B${DIR1}/usr/lib64 -B${DIR1}/usr/lib64/${SYSARCH}/${BINV} -L${DIR1}/lib64 -L${DIR1}/usr/lib64 -L${DIR1}/lib64/${SYSARCH}/${BINV} -L${DIR1}/usr/lib64/${SYSARCH}/${BINV} -L${DIR1}/lib -L${DIR1}/usr/lib")
++set(OpenMP_C_LIB_NAMES "gomp")
++set(OpenMP_CXX_LIB_NAMES "gomp")
++set(OpenMP_C_FLAGS "-fopenmp=libgomp -Wno-unused-command-line-argument ${OMPINC} ${LINKP}" CACHE STRING "" FORCE)
++set(OpenMP_CXX_FLAGS "-fopenmp=libgomp -Wno-unused-command-line-argument ${OMPINC} ${LINKP}" CACHE STRING "" FORCE)
++set(OpenMP_gomp_LIBRARY "${OpenMP_HOME}/lib64/")
+ find_package(OpenMP REQUIRED)
+ if(NOT TARGET OpenMP::OpenMP_CXX)
+     add_library(OpenMP::OpenMP_CXX IMPORTED INTERFACE)

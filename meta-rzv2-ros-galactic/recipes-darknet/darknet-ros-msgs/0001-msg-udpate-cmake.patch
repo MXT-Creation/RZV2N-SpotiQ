@@ -1,0 +1,13 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+new file mode 100644
+index 0000000..8239525
+--- /dev/null
++++ b/CMakeLists.txt
+@@ -0,0 +1,7 @@
++#
++# Copyright (C) 2024 Renesas Electronics Corporation. All rights reserved.
++#
++
++# build darknet_drp_ros application by another recipe
++# we use darknet_ros_msgs only in this package 
++add_subdirectory(darknet_ros_msgs)

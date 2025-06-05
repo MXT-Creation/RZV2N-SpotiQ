@@ -1,0 +1,82 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index d62c5cd..629c957 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -77,40 +77,49 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -ffast-math")
+ 
+ set(BUILD_WITH_MARCH_NATIVE OFF CACHE BOOL "Enable architecture-aware optimization (-march=native)")
+ 
+-if(BUILD_WITH_MARCH_NATIVE)
+-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mtune=native -march=native")
+-    set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -mtune=native -march=native")
+-    message(STATUS "Architecture-aware optimization (-march=native): ENABLED")
+-else()
+-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mtune=native")
+-    set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -mtune=native")
+-    message(STATUS "Architecture-aware optimization (-march=native): DISABLED")
+-endif()
++#if(BUILD_WITH_MARCH_NATIVE)
++#    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mtune=native -march=native")
++#    set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -mtune=native -march=native")
++#    message(STATUS "Architecture-aware optimization (-march=native): ENABLED")
++#else()
++#    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mtune=native")
++#    set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -mtune=native")
++#    message(STATUS "Architecture-aware optimization (-march=native): DISABLED")
++#endif()
+ 
+ #######################
+ # Check C++11 support #
+ #######################
+ 
+ include(CheckCXXCompilerFlag)
+-check_cxx_compiler_flag("-std=c++17" COMPILER_SUPPORTS_CXX17)
+-check_cxx_compiler_flag("-std=c++14" COMPILER_SUPPORTS_CXX14)
+-check_cxx_compiler_flag("-std=c++11" COMPILER_SUPPORTS_CXX11)
+-check_cxx_compiler_flag("-std=c++0x" COMPILER_SUPPORTS_CXX0X)
+-if(COMPILER_SUPPORTS_CXX17)
+-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17")
+-    message(STATUS "C++11 support: OK (-std=c++17)")
+-elseif(COMPILER_SUPPORTS_CXX14)
+-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14")
+-    message(STATUS "C++11 support: OK (-std=c++14)")
+-elseif(COMPILER_SUPPORTS_CXX11)
+-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+-    message(STATUS "C++11 support: OK (-std=c++11)")
+-elseif(COMPILER_SUPPORTS_CXX0X)
+-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
+-    message(STATUS "C++11 support: OK (-std=c++0x)")
+-else()
+-    message(FATAL_ERROR "The compiler ${CMAKE_CXX_COMPILER} has no C++11 support. Please use a different C++ compiler.")
+-endif()
++#check_cxx_compiler_flag("-std=c++17" COMPILER_SUPPORTS_CXX17)
++#check_cxx_compiler_flag("-std=c++14" COMPILER_SUPPORTS_CXX14)
++#check_cxx_compiler_flag("-std=c++11" COMPILER_SUPPORTS_CXX11)
++#check_cxx_compiler_flag("-std=c++0x" COMPILER_SUPPORTS_CXX0X)
++#if(COMPILER_SUPPORTS_CXX17)
++#    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17")
++#    message(STATUS "C++11 support: OK (-std=c++17)")
++#elseif(COMPILER_SUPPORTS_CXX14)
++#    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14")
++#    message(STATUS "C++11 support: OK (-std=c++14)")
++#elseif(COMPILER_SUPPORTS_CXX11)
++#    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
++#    message(STATUS "C++11 support: OK (-std=c++11)")
++#elseif(COMPILER_SUPPORTS_CXX0X)
++#    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
++#    message(STATUS "C++11 support: OK (-std=c++0x)")
++#else()
++#    message(FATAL_ERROR "The compiler ${CMAKE_CXX_COMPILER} has no C++11 support. Please use a different C++ compiler.")
++#endif()
++
++string(FIND "${CMAKE_FIND_ROOT_PATH}" ";" SPIDX)
++string(SUBSTRING "${CMAKE_FIND_ROOT_PATH}" 0 ${SPIDX} DIR1)
++set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -L${DIR1}/lib -L${DIR1}/usr/lib -lfbow")
++set(CMAKE_THREAD_LIBS_INIT "-lpthread")
++set(CMAKE_HAVE_THREADS_LIBRARY 1)
++set(CMAKE_USE_WIN32_THREADS_INIT 0)
++set(CMAKE_USE_PTHREADS_INIT 1)
++set(THREADS_PREFER_PTHREAD_FLAG ON)
+ 
+ #################
+ # Find packages #

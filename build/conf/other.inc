@@ -1,0 +1,17 @@
+# additional ros2 pkg. (moveit2 depend's packages etc.)
+IMAGE_INSTALL:append = " control-msgs"
+IMAGE_INSTALL:append = " geometry2"
+IMAGE_INSTALL:append = " eigen-stl-containers"
+IMAGE_INSTALL:append = " octomap-msgs"
+IMAGE_INSTALL:append = " geometric-shapes"
+IMAGE_INSTALL:append = " object-recognition-msgs"
+IMAGE_INSTALL:append = " random-numbers"
+IMAGE_INSTALL:append = " srdfdom"
+#IMAGE_INSTALL:append = " urdf-parser-py"
+IMAGE_INSTALL:append = " urdf-parser-plugin"
+IMAGE_INSTALL:append = " urdfdom-py"
+IMAGE_INSTALL:append = " octomap"
+IMAGE_INSTALL:append = " eigen3-cmake-module"
+IMAGE_INSTALL:append = " image-geometry"
+
+IMAGE_INSTALL:append = " ros2-control"
