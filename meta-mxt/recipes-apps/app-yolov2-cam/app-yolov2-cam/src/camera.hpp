@@ -51,6 +51,7 @@ class Camera {
    */
   ~Camera() { closeCamera(); }
 
+bool configureCamera();
   /**
    * @brief Starts the capture device
    * @return

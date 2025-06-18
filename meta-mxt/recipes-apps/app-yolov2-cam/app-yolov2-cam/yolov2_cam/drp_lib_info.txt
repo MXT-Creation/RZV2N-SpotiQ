@@ -1,0 +1,56 @@
+12  # driver version  v0.2 
+48  # driver version >v0.3
+# conv_yuv2rgb  [MASK : ON]
+# resize_hwc  [MASK : ON]
+# imagescaler  [MASK : ON]
+# quantize  [MASK : ON]
+# quantize  [MASK : ON]
+# quantize  [MASK : ON]
+# quantize  [MASK : ON]
+# reorg_st2  [MASK : ON]
+# quantize  [MASK : ON]
+# quantize  [MASK : ON]
+# transpose  [MASK : ON]
+# cast_fp16_fp32  [MASK : ON]
+# ============================
+# Address data in drp_param.bin
+# DRP LIB name[Layer Name]
+# [Start position], [Size(Byte)], [Param name], [Value]
+conv_yuv2rgb[0_node_pre_0_0_conv_yuv2rgb_R_W]
+Start:0[Byte],Size:4[Byte],Param:raddr,Value:0x80000000
+Start:4[Byte],Size:4[Byte],Param:waddr,Value:0x803f4800
+resize_hwc[1_node_pre_0_1_resize_hwc_R_W]
+Start:56[Byte],Size:4[Byte],Param:raddr,Value:0x803f4800
+Start:60[Byte],Size:4[Byte],Param:waddr,Value:0x809e3400
+imagescaler[2_node_pre_0_2_imagescaler_R_W]
+Start:112[Byte],Size:4[Byte],Param:raddr,Value:0x809e3400
+Start:116[Byte],Size:4[Byte],Param:waddr,Value:0x80a62000
+Start:160[Byte],Size:4[Byte],Param:ADD_ADDR,Value:0x81b2d980
+Start:164[Byte],Size:4[Byte],Param:MUL_ADDR,Value:0x81b2d9c0
+quantize[3_node_input1_QuantizeLinear_Output_R_W]
+Start:176[Byte],Size:4[Byte],Param:raddr,Value:0x80a62000
+Start:180[Byte],Size:4[Byte],Param:waddr,Value:0x80b5f800
+quantize[38_node_module_list.16_leaky_16_LeakyRelu_output_0_DequantizeLinear_Output_br-1_R_W]
+Start:240[Byte],Size:4[Byte],Param:raddr,Value:0x81966c00
+Start:244[Byte],Size:4[Byte],Param:waddr,Value:0x819bb400
+quantize[39_node_Concat_output_0_QuantizeLinear_Output_R_W]
+Start:304[Byte],Size:4[Byte],Param:raddr,Value:0x819bb400
+Start:308[Byte],Size:4[Byte],Param:waddr,Value:0x81a64400
+quantize[41_node_module_list.27_reorg_27_Reshape_output_0_deq_in_R_W]
+Start:368[Byte],Size:4[Byte],Param:raddr,Value:0x81ab8c00
+Start:372[Byte],Size:4[Byte],Param:waddr,Value:0x81ac3500
+reorg_st2[42_node_module_list.27_reorg_27_Reshape_output_0_R_W]
+Start:432[Byte],Size:4[Byte],Param:raddr,Value:0x81ac3500
+Start:436[Byte],Size:4[Byte],Param:waddr,Value:0x81ad8700
+quantize[43_node_module_list.27_reorg_27_Reshape_output_0_q_out_R_W]
+Start:488[Byte],Size:4[Byte],Param:raddr,Value:0x81ad8700
+Start:492[Byte],Size:4[Byte],Param:waddr,Value:0x81aed900
+quantize[113_node_output1_R_W]
+Start:552[Byte],Size:4[Byte],Param:raddr,Value:0x81b22600
+Start:556[Byte],Size:4[Byte],Param:waddr,Value:0x81b23a00
+transpose[114_node_post_0_0_transpose_R_W]
+Start:616[Byte],Size:4[Byte],Param:raddr,Value:0x81b23a00
+Start:620[Byte],Size:4[Byte],Param:waddr,Value:0x81b261c0
+cast_fp16_fp32[115_node_post_0_1_cast_fp16_fp32_R_W]
+Start:672[Byte],Size:4[Byte],Param:raddr,Value:0x81b261c0
+Start:676[Byte],Size:4[Byte],Param:waddr,Value:0x81b28980

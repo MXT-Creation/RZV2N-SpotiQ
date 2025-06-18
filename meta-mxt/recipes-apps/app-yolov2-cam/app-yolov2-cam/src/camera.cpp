@@ -53,12 +53,59 @@ Camera::Camera(CameraSource camera_source, uint32_t width, const uint32_t height
   capture_height_ = height;
 }
 
+
+bool Camera::configureCamera()
+{
+    int fd = open("/dev/video0", O_RDWR);
+    if (fd < 0) {
+        std::cerr << "[ERROR] Failed to open video device" << std::endl;
+        return false;
+    }
+
+    struct v4l2_control control;
+
+    // Set Auto Exposure Mode to Manual
+    control.id = V4L2_CID_EXPOSURE_AUTO;
+    control.value = 1;
+    if (ioctl(fd, VIDIOC_S_CTRL, &control) < 0) {
+        std::cerr << "[ERROR] Failed to set manual exposure" << std::endl;
+    }
+
+    // Set Exposure Value
+    control.id = V4L2_CID_EXPOSURE_ABSOLUTE;
+    control.value = 150; // Adjust exposure level as needed
+    if (ioctl(fd, VIDIOC_S_CTRL, &control) < 0) {
+        std::cerr << "[ERROR] Failed to set exposure value" << std::endl;
+    }
+
+    // Disable Auto Focus
+    control.id = V4L2_CID_FOCUS_AUTO;
+    control.value = 0;
+    if (ioctl(fd, VIDIOC_S_CTRL, &control) < 0) {
+        std::cerr << "[ERROR] Failed to disable autofocus" << std::endl;
+    }
+
+    // Set Manual Focus
+    control.id = V4L2_CID_FOCUS_ABSOLUTE;
+    control.value = 50;  // Adjust this value as needed
+    if (ioctl(fd, VIDIOC_S_CTRL, &control) < 0) {
+        std::cerr << "[ERROR] Failed to set manual focus" << std::endl;
+    }
+
+    close(fd);
+    return true;
+}
+
+
 bool Camera::startCamera() {
   MediaDevice media_dev{static_cast<int>(cam_src_)};
   if (!media_dev.isOpen()) {
     std::cerr << "Failed to open /dev/media" << static_cast<int>(cam_src_) << std::endl;
     return false;
   }
+
+    // Apply Camera Settings (Focus, Exposure)
+    configureCamera();
 
   // Only need to configure the pipeline for the MIPI Cameras
   if (cam_src_ < CameraSource::UVC0) 

@@ -1,0 +1,5 @@
+Input_node_name: camera_data
+         Address: 0x80000000
+         Channel: 2
+         Width  : 1920
+         Height : 1080

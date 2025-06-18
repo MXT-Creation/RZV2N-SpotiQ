@@ -142,14 +142,72 @@ bool readGpioValue(const std::string& gpio_name)
     return (val == 1);
 }
 
+static void saveCalibration(const std::string &filename)
+{
+    nlohmann::json j;
+    j["top_left"]["H"]    = gTopLeft_H.load();
+    j["top_left"]["W"]    = gTopLeft_W.load();
+    j["top_right"]["H"]   = gTopRight_H.load();
+    j["top_right"]["W"]   = gTopRight_W.load();
+    j["bottom_left"]["H"] = gBottomLeft_H.load();
+    j["bottom_left"]["W"] = gBottomLeft_W.load();
+    j["bottom_right"]["H"]= gBottomRight_H.load();
+    j["bottom_right"]["W"]= gBottomRight_W.load();
+
+    std::ofstream ofs(filename);
+    if (!ofs) {
+        std::cerr << "[CALIB] Could not open file to save calibration: " << filename << std::endl;
+        return;
+    }
+    ofs << j.dump(4) << std::endl;
+    ofs.close();
+    std::cout << "[CALIB] Saved corner calibration to " << filename << std::endl;
+}
+
+static void loadCalibration(const std::string &filename)
+{
+    std::ifstream ifs(filename);
+    if (!ifs) {
+        std::cerr << "[CALIB] No existing calibration file found: " << filename << std::endl;
+        return;
+    }
+    try {
+        nlohmann::json j;
+        ifs >> j;
+        ifs.close();
+
+        gTopLeft_H.store(j["top_left"]["H"].get<double>());
+        gTopLeft_W.store(j["top_left"]["W"].get<double>());
+        gTopRight_H.store(j["top_right"]["H"].get<double>());
+        gTopRight_W.store(j["top_right"]["W"].get<double>());
+        gBottomLeft_H.store(j["bottom_left"]["H"].get<double>());
+        gBottomLeft_W.store(j["bottom_left"]["W"].get<double>());
+        gBottomRight_H.store(j["bottom_right"]["H"].get<double>());
+        gBottomRight_W.store(j["bottom_right"]["W"].get<double>());
+
+        std::cout << "[CALIB] Loaded calibration from " << filename << std::endl;
+		std::cout << "gTopLeft_H" << gTopLeft_H.load() << std::endl;
+		std::cout << "gTopLeft_W" << gTopLeft_W.load() << std::endl;
+		std::cout << "gTopRight_H" << gTopRight_H.load() << std::endl;
+		std::cout << "gTopRight_W" << gTopRight_W.load() << std::endl;
+		std::cout << "gBottomLeft_H" << gBottomLeft_H.load() << std::endl;
+		std::cout << "gBottomLeft_W" << gBottomLeft_W.load() << std::endl;
+		std::cout << "gBottomRight_H" << gBottomRight_H.load() << std::endl;
+		std::cout << "gBottomRight_W" << gBottomRight_W.load() << std::endl;
+    }
+    catch(std::exception &e) {
+        std::cerr << "[CALIB] Error loading " << filename 
+                  << ": " << e.what() << std::endl;
+    }
+}
+
 // An atomic flag you use to check for termination
 extern std::atomic<bool> gShouldTerminate;
 
 void GpioButtonThread()
 {
-   std::cout << "[INFO] GpioButtonThread started." << std::endl;
+    std::cout << "[INFO] GpioButtonThread started." << std::endl;
 
-    // Store the initial (previous) states
     bool button1_prev = readGpioValue(BUTTON1_GPIO);
     bool button2_prev = readGpioValue(BUTTON2_GPIO);
 
@@ -158,18 +216,44 @@ void GpioButtonThread()
         bool button1_curr = readGpioValue(BUTTON1_GPIO);
         bool button2_curr = readGpioValue(BUTTON2_GPIO);
 
-        // Detect a rising edge for Button1: 0 -> 1
+        // Detect rising edge for Button1
         if (!button1_prev && button1_curr) {
-            std::cout << "Button1 (GPIO " << BUTTON1_GPIO << ") pressed!\n";
-            // Do something (only once per actual press)
+            std::cout << "Button1 pressed!\n";
+            
+            if (!gIsCalibrating.load()) {
+                // Start calibration mode
+                gIsCalibrating.store(true);
+                gCalibrationStep.store(0);
+                std::cout << "[CALIB] Entering calibration mode. Please place cube in TOP-LEFT corner.\n";
+            } else {
+                // We are already in calibration mode, so user wants to store the next corner:
+                int step = gCalibrationStep.load();
+                step++;
+                if (step >= 4) {
+                    // We have presumably stored all corners. We'll wait for Button2 to exit
+                    step = 4; // clamp
+                    std::cout << "[CALIB] All 4 corners captured. Press Button2 to exit calibration.\n";
+					saveCalibration(cameraCalibrationFile);
+                } else {
+                    std::cout << "[CALIB] Moved to corner step = " << step 
+                              << ", place cube in next corner.\n";
+                }
+                gCalibrationStep.store(step);
+            }
         }
 
-        // Detect a rising edge for Button2: 0 -> 1
+        // Detect rising edge for Button2
         if (!button2_prev && button2_curr) {
-            std::cout << "Button2 (GPIO " << BUTTON2_GPIO << ") pressed!\n";
-			sRobotControl->clearQueue();
-			sRobotControl->initUART();
-            // Do something else(only once per actual press)
+            std::cout << "Button2 pressed!\n";
+            // If we are calibrating, let's finalize
+            if (gIsCalibrating.load()) {
+                gIsCalibrating.store(false);
+                std::cout << "[CALIB] Exiting calibration mode. Normal logic re-enabled.\n";
+            } else {
+                // Possibly do something else 
+                sRobotControl->clearQueue();
+                sRobotControl->initUART();
+            }
         }
 
         // Update previous states
@@ -182,7 +266,6 @@ void GpioButtonThread()
 
     std::cout << "[INFO] GpioButtonThread terminated." << std::endl;
 }
-
 
 /*****************************************
 *Function Name: degreestoADC
@@ -390,7 +473,6 @@ void performPostProcessing(float *floatarr, Detections detections) {
  */
 void drawBoundingBoxes(Image::SharedPtr image, Detections detections) {
   std::lock_guard<std::mutex> lock(detections_mutex);
-
     // static variables to persist across calls
     static bool object_was_detected = false;
     static int counts_detection = 0;
@@ -400,6 +482,118 @@ void drawBoundingBoxes(Image::SharedPtr image, Detections detections) {
 	std::string color;
 	int height = 0;
 	int width = 0;
+double centerW;
+double centerH;
+// 1) Check calibration mode first
+    if (gIsCalibrating.load()) 
+    {
+        // We disable the normal detection->move logic
+        // We want to store the corner if user pressed Button1 so that step advanced 
+        // We'll check if we see at least one detection
+        // (Or you can do a stable detection approach if you want.)
+        // Step: 0=Top-left, 1=Top-right, 2=Bottom-left, 3=Bottom-right
+        int step = gCalibrationStep.load();
+        // Compose a small message for the user
+        // We'll place the text calls directly inside the switch
+        switch (step) {
+          case 0:
+{
+            image->drawText("CALIB MODE (Step 1/4): Place cube in TOP-LEFT corner.",
+                            TextAlignment::kLeftAligned, 20, 40, 1.0f, 0xFF0000u);
+            image->drawText("If the cube was detected at least once, press Button1.",
+                            TextAlignment::kLeftAligned, 20, 70, 1.0f, 0xFF0000u);
+            break;
+}
+          case 1:
+{
+            image->drawText("CALIB MODE (Step 2/4): Place cube in TOP-RIGHT corner.",
+                            TextAlignment::kLeftAligned, 20, 40, 1.0f, 0xFF0000u);
+            image->drawText("If the cube was detected at least once, press Button1.",
+                            TextAlignment::kLeftAligned, 20, 70, 1.0f, 0xFF0000u);
+            break;
+}
+          case 2:
+{
+            image->drawText("CALIB MODE (Step 3/4): Place cube in BOTTOM-LEFT corner.",
+                            TextAlignment::kLeftAligned, 20, 40, 1.0f, 0xFF0000u);
+            image->drawText("If the cube was detected at least once, press Button1.",
+                            TextAlignment::kLeftAligned, 20, 70, 1.0f, 0xFF0000u);
+            break;
+}
+          case 3:
+{
+            image->drawText("CALIB MODE (Step 4/4): Place cube in BOTTOM-RIGHT corner.",
+                            TextAlignment::kLeftAligned, 20, 40, 1.0f, 0xFF0000u);
+            image->drawText("If the cube was detected at least once, press Button1.",
+                            TextAlignment::kLeftAligned, 20, 70, 1.0f, 0xFF0000u);
+            break;
+}
+          default:
+{
+            // "default" => we won't print the second line
+            image->drawText("CALIB MODE: Already got 4 corners. Press Button2 to exit.",
+                            TextAlignment::kLeftAligned, 20, 40, 1.0f, 0xFF0000u);
+            break;
+}
+        }
+        // If there's at least 1 detection with a valid bounding box, let's store that pixel
+        for (const Detection& detection : (*detections)) {
+            if (detection.prob > 0.0 && detection.bbox.w < 250) 
+            {
+                double centerW = detection.bbox.x + detection.bbox.w/2.0;
+                double centerH = detection.bbox.y + detection.bbox.h/2.0;
+
+                // Which corner are we capturing?
+                int step = gCalibrationStep.load();
+                if (step < 4) {
+                    if      (step == 0) {
+                        gTopLeft_H.store(centerH);
+                        gTopLeft_W.store(centerW);
+                        std::cout << "[CALIB] Stored TOP-LEFT corner: H=" 
+                                  << centerH << " W=" << centerW << std::endl;
+                    }
+                    else if (step == 1) {
+                        gTopRight_H.store(centerH);
+                        gTopRight_W.store(centerW);
+                        std::cout << "[CALIB] Stored TOP-RIGHT corner: H=" 
+                                  << centerH << " W=" << centerW << std::endl;
+                    }
+                    else if (step == 2) {
+                        gBottomLeft_H.store(centerH);
+                        gBottomLeft_W.store(centerW);
+                        std::cout << "[CALIB] Stored BOTTOM-LEFT corner: H=" 
+                                  << centerH << " W=" << centerW << std::endl;
+                    }
+                    else if (step == 3) {
+                        gBottomRight_H.store(centerH);
+                        gBottomRight_W.store(centerW);
+                        std::cout << "[CALIB] Stored BOTTOM-RIGHT corner: H=" 
+                                  << centerH << " W=" << centerW << std::endl;
+                    }
+                }
+		std::stringstream stream;
+		stream << std::fixed << std::setprecision(2) << detection.prob;
+        // Define the bounding box as a cv::Rect
+        cv::Rect bbox(static_cast<int>(detection.bbox.x), static_cast<int>(detection.bbox.y),
+                      static_cast<int>(detection.bbox.w), static_cast<int>(detection.bbox.h));
+
+		// Get the dominant color inside the bounding box
+		color = image->getDominantColor(static_cast<int>(detection.bbox.x), static_cast<int>(detection.bbox.y),
+                         static_cast<int>(detection.bbox.w), static_cast<int>(detection.bbox.h));
+		std::ostringstream distance_stream;
+		distance_stream << std::fixed << std::setprecision(2) << distance; 
+		// Append distance and colour to the label 
+		std::string text = label_file_map[detection.c] + " " + stream.str() +
+                       " D: " + distance_stream.str() + "cm" + " "+color;
+                       
+		image->drawRectangle(static_cast<int>(detection.bbox.x), static_cast<int>(detection.bbox.y),
+                         static_cast<int>(detection.bbox.w), static_cast<int>(detection.bbox.h), text,
+                         box_color[detection.c]);
+        }
+        }
+        return; // skip the rest
+    }
+
 if(!robot_is_moving.load())
 {
   for (const Detection& detection : (*detections)) {
@@ -409,21 +603,22 @@ if(!robot_is_moving.load())
 	}
 else
 {
-	int minWidthBoxDetectionZone = 700;
-	int maxWidthBoxDetectionZone = 1250;
-	int minHeightBoxDetectionZone = 250;
-	int maxHeightBoxDetectionZone = 630;
-double centerX = detection.bbox.x + (detection.bbox.w / 2.0);
-double centerY = detection.bbox.y + (detection.bbox.h / 2.0);
-if(((static_cast<int>(detection.bbox.x))>minWidthBoxDetectionZone)&&((static_cast<int>(detection.bbox.x))<maxWidthBoxDetectionZone))//&&((static_cast<int>(detection.bbox.y))>minHeightBoxDetectionZone)&&((static_cast<int>(detection.bbox.y))<maxHeightBoxDetectionZone))
+//The width inside the area where the cube can be
+double minWidthBoxDetectionZone = gBottomLeft_W.load();
+minWidthBoxDetectionZone = minWidthBoxDetectionZone -50;
+double maxWidthBoxDetectionZone = gBottomRight_W.load();
+maxWidthBoxDetectionZone = maxWidthBoxDetectionZone +50;
+	centerW = detection.bbox.x + (detection.bbox.w / 2.0);
+	centerH = detection.bbox.y + (detection.bbox.h / 2.0);
+if(centerW>minWidthBoxDetectionZone && centerW<maxWidthBoxDetectionZone)//&&((static_cast<int>(detection.bbox.y))>minHeightBoxDetectionZone)&&((static_cast<int>(detection.bbox.y))<maxHeightBoxDetectionZone))
 {
     std::stringstream stream;
     stream << std::fixed << std::setprecision(2) << detection.prob;
 
         // Calculate distance
-    distance = calculateDistance(centerX, centerY);
-		height = static_cast<int>(centerY);
-		width = static_cast<int>(centerX);
+    distance = calculateDistance(centerW, centerH);
+		height = static_cast<int>(centerH);
+		width = static_cast<int>(centerW);
 	//std::cout << "distance is as follows = "<<distance<<std::endl;
         // Define the bounding box as a cv::Rect
         cv::Rect bbox(static_cast<int>(detection.bbox.x), static_cast<int>(detection.bbox.y),
@@ -450,6 +645,7 @@ else
 }
 }
 }
+}
 //robot_is_moving.store(true);
 // Now handle the stable detection logic
     if ((object_found)&&(!robot_is_moving.load())) {
@@ -467,27 +663,26 @@ else
 					if((distance>=15)&&(distance <35))
 					{
 					robot_is_moving.store(true);
-					//double correctedDistance = calculateCorection(distance);
 					if(color == "Blue")
 					{	
 							std::cout << "MoveToTarget left Blue and distance  = "<< distance<<"  hightP = "<<height<<"  widthP = "<<width<<std::endl;
-							sMoveToTarget->enqueueTarget(distance, 2.0,1);
+							sMoveToTarget->enqueueTarget(centerH,centerW,1);
 					}
 					else if(color == "Red")
 					{	
 							std::cout << "MoveToTarget left Red and distance  = "<< distance<<"  hightP = "<<height<<"  widthP = "<<width<<std::endl;
-							sMoveToTarget->enqueueTarget(distance, 2.0,2);
+							sMoveToTarget->enqueueTarget(centerH,centerW,2);
 					}
 					else if(color == "Yellow")
 					{	
 							std::cout << "MoveToTarget left Yellow and distance  = "<< distance<<"  hightP = "<<height<<"  widthP = "<<width<<std::endl;
-							sMoveToTarget->enqueueTarget(distance, 2.0,4);
+							sMoveToTarget->enqueueTarget(centerH,centerW,4);
 					}
 					else if(color == "Green")
 					{
 
 						std::cout << "MoveToTarget right Green and distance  = "<< distance<<"  hightP = "<<height<<"  widthP = "<<width<<std::endl;
-						sMoveToTarget->enqueueTarget(distance, 2.0,3);
+						sMoveToTarget->enqueueTarget(centerH,centerW,3);
 					}
 					}
                 }
@@ -497,7 +692,7 @@ else
         // No object found this frame
         object_was_detected = false;
     }
-}
+//}
 }
 
 /**
@@ -793,26 +988,26 @@ void ImageThread(Image::SharedPtr image, Detections detections, Statistics::Shar
             drawBoundingBoxes(image, detections);
             drawStatistics(image, stats);
 
-            // 2d) Convert from BGR -> RGBA
+            // 2d) Convert from BGR -> BGRA
             //     The active buffer in `Image` is BGR and has 3 channels.
             uint8_t* bgr_data = image->getWaylandBufferData(image->getActiveBufferId());
-            size_t pixelCount = IMAGE_OUTPUT_WIDTH * IMAGE_OUTPUT_HEIGHT;
-            for (size_t i = 0; i < pixelCount; i++)
-            {
-                uint8_t B = bgr_data[i*3 + 0];
-                uint8_t G = bgr_data[i*3 + 1];
-                uint8_t R = bgr_data[i*3 + 2];
-                rgba_buffer[i*4 + 0] = B;
-                rgba_buffer[i*4 + 1] = G;
-                rgba_buffer[i*4 + 2] = R;
-                rgba_buffer[i*4 + 3] = 255;  // Full alpha
-            }
+            //size_t pixelCount = IMAGE_OUTPUT_WIDTH * IMAGE_OUTPUT_HEIGHT;
+            //for (size_t i = 0; i < pixelCount; i++)
+            //{
+            //    uint8_t B = bgr_data[i*3 + 0];
+            //    uint8_t G = bgr_data[i*3 + 1];
+            //    uint8_t R = bgr_data[i*3 + 2];
+            //    rgba_buffer[i*4 + 0] = B;
+            //    rgba_buffer[i*4 + 1] = G;
+            //    rgba_buffer[i*4 + 2] = R;
+            //    rgba_buffer[i*4 + 3] = 0;  // Full alpha
+            //}
             // Create OpenCV Mat headers around our existing data
-            //cv::Mat bgrMat(IMAGE_OUTPUT_HEIGHT, IMAGE_OUTPUT_WIDTH, CV_8UC3, bgr_data);
-            //cv::Mat bgraMat(IMAGE_OUTPUT_HEIGHT, IMAGE_OUTPUT_WIDTH, CV_8UC4,cv::Scalar(0, 0, 0,0) );
+            cv::Mat bgrMat(IMAGE_OUTPUT_HEIGHT, IMAGE_OUTPUT_WIDTH, CV_8UC3, bgr_data);
+            cv::Mat bgraMat(IMAGE_OUTPUT_HEIGHT, IMAGE_OUTPUT_WIDTH, CV_8UC4, rgba_buffer.data());
 
             // Convert BGR to BGRA (adds an alpha channel)
-            //cv::cvtColor(bgrMat, bgraMat, cv::COLOR_BGR2BGRA);
+            cv::cvtColor(bgrMat, bgraMat, cv::COLOR_BGR2BGRA);
 
 			//memcpy(img_buffer0, bgraMat.data, IMAGE_OUTPUT_HEIGHT * IMAGE_OUTPUT_WIDTH * BGRA_CHANNEL);
             // 2e) Commit to Wayland
@@ -878,21 +1073,7 @@ key_hit_end:
 bool RunMainLoop() {
   bool okay{true};
   std::cout << "Main Loop Starts" << std::endl;
-int x =0;
   while (1) {
- //   if (terminationRequested()) {
- //     goto main_proc_end;
- //   }
-//	x++;
-//	if(x==1000)
-//{
-//	openGripRobot();
-//}
-//	if(x==5000)
-//{
-//	closeGripRobot();
-//	x=0;
-//}
     std::this_thread::sleep_for(kThreadSleepTime);
   }
 
@@ -1030,8 +1211,21 @@ int32_t main(int32_t argc, char *argv[]) {
 
     std::system("echo in > /sys/class/gpio/P5_5/direction");
     std::system("echo in > /sys/class/gpio/P5_6/direction");
-
-
+	//load the camera calibration files
+    {
+        std::filesystem::path calFile(cameraCalibrationFile);
+        if(std::filesystem::exists(calFile))
+        {
+            std::cout << "[CALIB] Found existing calibration file: " 
+                      << calFile << " - Loading it.\n";
+            loadCalibration(calFile.string());
+        }
+        else
+        {
+            std::cout << "[CALIB] No calibration file found (" << calFile 
+                      << "). Starting with fresh corners.\n";
+        }
+    }
   std::thread keyboard_thread(KeyboardThread);
   std::thread inference_thread(InferenceThread, drp_ai_accelerator, drp_ai_buffer, detections, stats);
   std::thread capture_thread(CaptureThread, camera, output_buffer, drp_ai_buffer, image, stats);

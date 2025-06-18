@@ -172,7 +172,7 @@ bool MoveToTarget::moveBlue()
     double dropAngle13 = 125; //drop angle the leave the cube Motor 3
     double dropAngle14 = 140; // drop angle the leave the cube Motor 4
 //rotate to left
-	sRobotControl->moveMotorInSteps(0x1, 120);
+	sRobotControl->moveMotorInSteps(0x1, 117);
     sRobotControl->moveMotorInSteps(0x4, dropAngle14);
     sRobotControl->moveMotorInSteps(0x3, dropAngle13);
     sRobotControl->moveMotorInSteps(0x2, dropAngle12);
@@ -230,115 +230,31 @@ double MoveToTarget::calculateAngle(double x1, double y1, double x2, double y2, 
 }
 void MoveToTarget::handleRequest(const TargetRequest &req)
 {
- //store globaly that the robot is moving
-	//robot_is_moving = true;
-	double x = req.x;
-	double y = req.y;
 	int direction = req.direction;
 
-    // Initialize coordinates for the arm segments and motors
-    double x1, x2, x3, x4;
-    double y0, y1, y2, y3, y4;
-    x1 = x2 = x3 = x4 = 0; // Initializing x axis positions of each point to 0
-    y1 = y2 = y3 = x4 = 0; // Initializing y axis positions of each point to 0
+	    // now interpret them as pixel coordinates (H= x, W=y) if that's how you call it.
+    double H = req.x; // or req.y if you prefer
+    double W = req.y; // depends how you're passing the detection center
 
-    // Set initial positions for the first motor
-    x1 = 0;
-    y1 = 12; // Position of the first motor
+    // 1) Compute angles:
+    MotorAngles angles = getInterpolatedAngles(H, W);
 
-    // Initial angles for the motors in upright position
-    double theta1 = 38; // Initial angle for Motor 1
-    double theta2 = -20; // Initial angle for Motor 2
-	double correctedTheta2,correctedTheta3;
-    double theta3 = -68; // Initial angle for Motor 3
+	std::cout << "angles1: "<<angles.angle1<<std::endl;
+	std::cout << "angles2: "<<angles.angle2<<std::endl;
+	std::cout << "angles3: "<<angles.angle3<<std::endl;
+	std::cout << "angles4: "<<angles.angle4<<std::endl;
 
-    // Convert angles from degrees to radians
-    double radTheta1 = theta1 * M_PI / 180.0;
-    double radTheta2 = theta2 * M_PI / 180.0;
-    double radTheta3 = theta3 * M_PI / 180.0;
 
-    std::cout << "radTheta1 = " << radTheta1 << std::endl;
-    std::cout << "radTheta2 = " << radTheta2 << std::endl;
-    std::cout << "radTheta3 = " << radTheta3 << std::endl;
+	sRobotControl->moveMotorInSteps(0x01, angles.angle1);
 
-    // Define the limits for motor angles (in radians)
-    double maxradTheta1 = 1.5708; // 90 degrees
-    double minradTheta1 = 0.5236; // 30 degrees
-    double maxradTheta2 = 0.7854; // 45 degrees
-    double minradTheta2 = -0.7854; // -45 degrees
-    double maxradTheta3 = 0; // 0 degrees
-    double minradTheta3 = -1.5708; // -90 degrees
+	sRobotControl->moveMotorInSteps(0x04, angles.angle4);
 
-    bool conditionMeet = false; // Condition to check if target is reached
-    // Iterate through possible angles for the motors
-    for (radTheta1 = minradTheta1; (radTheta1 <= maxradTheta1); radTheta1 += 0.001) {
-        // Calculate the position of point 2 based on motor angle
-        x2 = x1 + LENGHT1 * cos(radTheta1);
-        y2 = y1 + LENGHT1 * sin(radTheta1);
+	sRobotControl->moveMotorInSteps(0x03, angles.angle3);
 
-        for (radTheta2 = minradTheta2; (radTheta2 <= maxradTheta2); radTheta2 += 0.001) {
-            // Calculate the position of point 3 based on motor angle
-            x3 = x2 + LENGHT2 * cos(radTheta2);
-            y3 = y2 + LENGHT2 * sin(radTheta2);
-
-            for (radTheta3 = minradTheta3; (radTheta3 <= maxradTheta3); radTheta3 += 0.001) {
-                // Calculate the position of point 4 based on motor angle
-                x4 = x3 + LENGHT3 * cos(radTheta3);
-                y4 = y3 + LENGHT3 * sin(radTheta3);
-
-                // Calculate the distance to the target
-                double distance = std::sqrt((x4 - x) * (x4 - x) + (y4 - y) * (y4 - y));
-
-                // Check if the distance is within the acceptable range
-                if ((distance < 2) && (y4 >= y) && (x4 <= x)&& (x4 >= (x-1))) {
-                    conditionMeet = true;
-                    std::cout << "distance = " << distance << std::endl;
-                    std::cout << "x4 = " << x4 << std::endl;
-                    std::cout << "y4 = " << y4 << std::endl;
-                break;  // Exit innermost loop
-            }
-        }
-        if (conditionMeet) break;  // Exit second loop
-    }
-    if (conditionMeet) break;  // Exit outermost loop
-    }
-
-    if (!conditionMeet) {
-        //do nothing; and remove lock
-		std::cout << "could not calculate angles to distance"<< std::endl;
-		robot_is_moving.store(false);
-    }
-	else
-{
-    // Output the adjusted angles
-    std::cout << " theta1: " << theta1 << " and in radians: " << radTheta1 << std::endl;
-    std::cout << " theta2: " << theta2 << " and in radians: " << radTheta2 << std::endl;
-    std::cout << " theta3: " << theta3 << " and in radians: " << radTheta3 << std::endl;
-    
-    // Calculate the angles between the segments
-    radTheta2 = calculateAngle(x1, y1, x2, y2, x3, y3);
-    radTheta3 = calculateAngle(x2, y2, x3, y3, x4, y4);
-
-    // Convert the angles back to degrees
-    theta1 = 180-(radTheta1 * 180.0 / M_PI);
-    theta2 = 180-(radTheta2 * 180.0 / M_PI);
-    theta3 = 180-(radTheta3 * 180.0 / M_PI);
-	
-	//apply angle corection
-	correctedTheta2 = theta2 + calculateAngleTheta2Corection(x);
-	correctedTheta3 = theta3 + calculateAngleTheta3Corection(x);
-	//sRobotControl->startWorker();
-	sRobotControl->moveMotorInSteps(0x04, correctedTheta3);
-	std::cout << "posDegres_14 moving to the following angle"<< correctedTheta3<<"correction from :"<<theta3<<std::endl;
-
-	sRobotControl->moveMotorInSteps(0x03, correctedTheta2);
-	std::cout << "posDegres_13  moving to the following angle"<< correctedTheta2<<"correction from :"<<theta2<<std::endl;
-
-	sRobotControl->moveMotorInSteps(0x02,  theta1);
-	std::cout << "posDegres_12  moving to the following angle"<< theta1<<std::endl;
+	sRobotControl->moveMotorInSteps(0x02,  angles.angle2);
 
 	//wait 2 seconds
-	std::this_thread::sleep_for(std::chrono::seconds(3));
+	std::this_thread::sleep_for(std::chrono::seconds(4));
 
     //Close the gripper
     sRobotControl->moveMotorInSteps(0x06, 145);
@@ -404,4 +320,97 @@ std::cout << "move to init position"<<std::endl;
 	std::this_thread::sleep_for(std::chrono::seconds(2));
 	robot_is_moving.store(false);
 }
+//------------------------------------------------------------------------------
+// getInterpolatedAngles
+//   Takes a pixel center (H, W) from a 1920x1080 image
+//   Returns the four motor angles via bilinear interpolation across the corners
+//
+//   You provided these four corners and angles:
+//
+//   Corner   (H, W)      angles = (angle1, angle2, angle3, angle4)
+//   ---------------------------------------------------------------
+//   Bottom-L  542,  860  -> (102, 123, 150, 154)
+//   Bottom-R  542, 1215  -> ( 78, 123, 150, 154)
+//   Top-L     253,  876  -> ( 99, 154, 114, 138)
+//   Top-R     253, 1171  -> ( 81, 154, 114, 138)
+//
+// Note: The left corners have slightly different W coords (860 vs 876).
+//       We'll define a single "W_left" and "W_right" anyway, so this is approximate.
+//------------------------------------------------------------------------------
+MotorAngles MoveToTarget::getInterpolatedAngles(double H, double W)
+{
+    // read from global:
+    double H_tl = gTopLeft_H.load();
+    double W_tl = gTopLeft_W.load();
+    double H_tr = gTopRight_H.load();
+    double W_tr = gTopRight_W.load();
+    double H_bl = gBottomLeft_H.load();
+    double W_bl = gBottomLeft_W.load();
+    double H_br = gBottomRight_H.load();
+    double W_br = gBottomRight_W.load();
+
+		std::cout << "gTopLeft_H" << H_tl<< std::endl;
+		std::cout << "gTopLeft_W" << W_tl<< std::endl;
+		std::cout << "gTopRight_H" << H_tr  << std::endl;
+		std::cout << "gTopRight_W" << W_tr << std::endl;
+		std::cout << "gBottomLeft_H" << H_bl << std::endl;
+		std::cout << "gBottomLeft_W" << W_bl << std::endl;
+		std::cout << "gBottomRight_H" << H_br << std::endl;
+		std::cout << "gBottomRight_W" << W_br << std::endl;
+    // You also need to define the angles for each corner. If you want them also
+    // stored from a file, do the same approach. If they're known constants, keep them as is:
+    MotorAngles A_tl { 97, 154, 115, 140 }; 
+    MotorAngles A_tr { 81, 154, 115, 140 }; 
+    MotorAngles A_bl {102, 123, 150, 150 };
+    MotorAngles A_br { 78, 123, 150, 150 };
+
+    // Then unify W_leftFinal etc. 
+    // Because  corners might not form a perfect rectangle, do approximate:
+    double W_leftFinal  = (W_tl + W_bl) * 0.5; 
+    double W_rightFinal = (W_tr + W_br) * 0.5;
+    double H_top        = (H_tl + H_tr) * 0.5;
+    double H_bottom     = (H_bl + H_br) *0.5;
+
+		std::cout << "W_leftFinal" << W_leftFinal << std::endl;
+		std::cout << "W_rightFinal" << W_rightFinal << std::endl;
+		std::cout << "H_top" << H_top << std::endl;
+		std::cout << "H_bottom" << H_bottom << std::endl;
+    // We'll do a short function to "blend" the angles from top-left, top-right.
+    auto interpolateAngles = [&](const MotorAngles &L, const MotorAngles &R, double u){
+        // linear from L..R by fraction u
+        MotorAngles out;
+        out.angle1 = (1.0 - u)*L.angle1 + u*R.angle1;
+        out.angle2 = (1.0 - u)*L.angle2 + u*R.angle2;
+        out.angle3 = (1.0 - u)*L.angle3 + u*R.angle3;
+        out.angle4 = (1.0 - u)*L.angle4 + u*R.angle4;
+        return out;
+    };
+
+    //--------------------------------------------------------------------------
+    // 3) Compute normalized coordinates:
+    //    v = fraction from top to bottom
+    //    u = fraction from left to right
+
+    double v = (H - H_top) / (H_bottom - H_top);
+    double u = (W - W_leftFinal) / (W_rightFinal - W_leftFinal);
+
+    // clamp them to [0..1] to avoid going outside corners
+    v = std::max(0.0, std::min(1.0, v));
+    u = std::max(0.0, std::min(1.0, u));
+
+    //--------------------------------------------------------------------------
+    // 4) Interpolate top row angles: top-left => top-right
+    MotorAngles topAngles = interpolateAngles(A_tl, A_tr, u);
+
+    //    Interpolate bottom row angles: bottom-left => bottom-right
+    MotorAngles bottomAngles = interpolateAngles(A_bl, A_br, u);
+
+    //--------------------------------------------------------------------------
+    // 5) Now interpolate vertically between topAngles and bottomAngles by v
+    MotorAngles finalAngles = interpolateAngles(topAngles, bottomAngles, v);
+		std::cout << "angle1" << finalAngles.angle1 << std::endl;
+		std::cout << "angle2" << finalAngles.angle2  << std::endl;
+		std::cout << "angle3" << finalAngles.angle3  << std::endl;
+		std::cout << "angle4" << finalAngles.angle4  << std::endl;
+    return finalAngles;
 }

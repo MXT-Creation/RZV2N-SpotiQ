@@ -247,5 +247,15 @@ extern int i2c_file;
 #define BGRA_CHANNEL                (4)
 // Robot movement in progress
 extern std::atomic<bool> robot_is_moving;
+// For calibration state:
+extern std::atomic<bool> gIsCalibrating;
+extern std::atomic<int> gCalibrationStep;
+// For the four corners in pixel coordinates (H, W):
+extern std::atomic<double> gTopLeft_H,    gTopLeft_W;
+extern std::atomic<double> gTopRight_H,   gTopRight_W;
+extern std::atomic<double> gBottomLeft_H, gBottomLeft_W;
+extern std::atomic<double> gBottomRight_H,gBottomRight_W;
+
+const static std::string cameraCalibrationFile  = "cameraCalibration.json";
 
 #endif /* DEFINE_MACRO_H */

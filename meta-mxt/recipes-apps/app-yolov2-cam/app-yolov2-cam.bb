@@ -10,6 +10,7 @@ inherit cmake pkgconfig systemd
 SRC_URI = "file://src \
            file://app-yolo2-cam.service \
            file://start_demo.sh \
+           file://yolov2_cam \
 "
 
 S = "${WORKDIR}//src"
@@ -30,6 +31,9 @@ do_install_append() {
     install -m 0755 -d ${D}/home/demo
     install -m 0755 ${WORKDIR}/start_demo.sh ${D}/home/demo
     
+    cp -r ${WORKDIR}/yolov2_cam ${D}/home/demo/
+    chmod -R 0755 ${D}/home/demo/yolov2_cam
+
     install -m 0755 -d ${D}${systemd_unitdir}/system
     install -m 0644 ${WORKDIR}/app-yolo2-cam.service ${D}${systemd_unitdir}/system/
 }

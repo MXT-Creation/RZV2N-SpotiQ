@@ -46,7 +46,7 @@ bool RobotControl::openUART()
     }
     cfsetispeed(&tty, B115200);
     cfsetospeed(&tty, B115200);
-    //tty.c_cflag |= (CLOCAL | CREAD);
+    tty.c_cflag &= (~CREAD);
     tty.c_cflag |= (CLOCAL);
     tty.c_cflag &= ~CSIZE;
     tty.c_cflag |= CS8;

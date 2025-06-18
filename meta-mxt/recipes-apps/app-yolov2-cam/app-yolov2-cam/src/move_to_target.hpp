@@ -19,7 +19,13 @@ struct TargetRequest {
     double y;
 int direction; //1 means move left; 2 means move right
 };
-
+// A simple struct to hold the four motor angles.
+struct MotorAngles {
+    double angle1; // e.g. Motor 1
+    double angle2; // e.g. Motor 2
+    double angle3; // e.g. Motor 3
+    double angle4; // e.g. Motor 4
+};
 /**
  * @brief MoveToTarget Class
  *
@@ -43,6 +49,9 @@ public:
     void enqueueTarget(double x, double y, int direction);
 	bool initUART();
 private:
+
+	MotorAngles getInterpolatedAngles(double H, double W);
+
     // The worker thread function
     void workerThread();
 

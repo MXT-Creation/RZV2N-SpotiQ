@@ -191,6 +191,8 @@ std::string Image::getDominantColor(int x, int y, int w, int h) {
         // to call the color “Yellow.” You may need to tweak this.
         const double closeThreshold = 20.0;
 
+        std::cout << "R:" << red << "; G:" << green<< "; B:" << blue<< std::endl;
+
         // Simple logic for detecting red, green, blue, or yellow
         // 1) Check if red and green are both significantly larger than blue
         //    and close enough to each other -> "Yellow"
