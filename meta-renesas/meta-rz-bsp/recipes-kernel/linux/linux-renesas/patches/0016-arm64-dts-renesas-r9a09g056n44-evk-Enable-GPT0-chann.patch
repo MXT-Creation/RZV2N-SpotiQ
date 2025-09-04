@@ -1,0 +1,46 @@
+From 7cea14811ba49de9933e8ec7cff5f8b8f72255da Mon Sep 17 00:00:00 2001
+From: "hoang.nguyen-minh" <hoang.nguyen-minh@banvien.com.vn>
+Date: Thu, 10 Apr 2025 14:36:32 +0700
+Subject: [PATCH 1/4] arm64: dts: renesas: r9a09g056n44-evk: Enable GPT0
+ channel 2 for RZ/V2N EVK board
+
+This commit enables GPT0 channel 2 for RZ/V2N EVK board.
+
+Signed-off-by: hoang.nguyen-minh <hoang.nguyen-minh@banvien.com.vn>
+---
+ arch/arm64/boot/dts/renesas/r9a09g056n44-evk.dts | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/renesas/r9a09g056n44-evk.dts b/arch/arm64/boot/dts/renesas/r9a09g056n44-evk.dts
+index 2d234cba468a..5d17df5792e6 100644
+--- a/arch/arm64/boot/dts/renesas/r9a09g056n44-evk.dts
++++ b/arch/arm64/boot/dts/renesas/r9a09g056n44-evk.dts
+@@ -530,6 +530,11 @@ usb20_pins: usb20 {
+ 			 <RZG2L_PORT_PINMUX(9, 6, 14)>; /* OVC */
+ 	};
+ 
++	gpt0_2_pins: gpt0_2 {
++		pinmux = <RZG2L_PORT_PINMUX(7, 2, 9)>, /* Channel A */
++			 <RZG2L_PORT_PINMUX(7, 3, 9)>; /* Channel B */
++	};
++
+ 	usb30_pins: usb30 {
+ 		pinmux = <RZG2L_PORT_PINMUX(11, 0, 14)>, /* VBUS */
+ 			 <RZG2L_PORT_PINMUX(11, 1, 14)>; /* OVC */
+@@ -743,6 +748,13 @@ &usb2_phy0 {
+ 	status = "okay";
+ };
+ 
++&gpt0_2 {
++	pinctrl-0 = <&gpt0_2_pins>;
++	pinctrl-names = "default";
++	channel = "both_AB";
++	status = "okay";
++};
++
+ &usb3_phy0 {
+ 	status = "okay";
+ };
+-- 
+2.25.1
+

@@ -1,0 +1,10 @@
+diff --git a/conf/local.conf b/conf/local.conf
+index aa32196..5b03895 100644
+--- a/conf/local.conf
++++ b/conf/local.conf
+@@ -311,3 +311,5 @@ WKS_FILE = "rz-image-bootpart-esd.wks"
+ SDKIMAGE_FEATURES:append = " staticdev-pkgs dev-pkgs dbg-pkgs"
+ 
+ IMAGE_INSTALL:append = " psplash"
++
++IMAGE_INSTALL:append = " tesseract tesseract-lang "

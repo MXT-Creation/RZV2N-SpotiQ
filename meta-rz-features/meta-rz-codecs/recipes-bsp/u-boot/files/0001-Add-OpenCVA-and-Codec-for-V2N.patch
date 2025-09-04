@@ -1,0 +1,52 @@
+From 3210f59c09c515571ef05047595d089675b5e21c Mon Sep 17 00:00:00 2001
+From: Hung Thanh Huynh <hung.huynh.wz@renesas.com>
+Date: Fri, 9 Aug 2024 18:31:01 +0900
+Subject: [PATCH] Add OpenCVA and Codec for V2N
+
+Signed-off-by: Hung Thanh Huynh <hung.huynh.wz@renesas.com>
+---
+ include/configs/rzv2n-dev.h | 8 ++++++--
+ include/configs/rzv2n-evk.h | 8 ++++++--
+ 2 files changed, 12 insertions(+), 4 deletions(-)
+
+diff --git a/include/configs/rzv2n-dev.h b/include/configs/rzv2n-dev.h
+index 1b17a8501a..32b5a0d301 100644
+--- a/include/configs/rzv2n-dev.h
++++ b/include/configs/rzv2n-dev.h
+@@ -65,8 +65,12 @@
+ 	"prodsdbootargs=setenv bootargs rw rootwait earlycon root=/dev/mmcblk2p2 \0" \
+ 	"prodemmcbootargs=setenv bootargs rw rootwait earlycon root=/dev/mmcblk0p2 \0" \
+ 	"bootimage=booti 0x48080000 - 0x48000000 \0" \
+-	"emmcload=ext4load mmc 0:2 0x48080000 boot/Image;ext4load mmc 0:2 0x48000000 boot/r9a09g056n44-dev.dtb;run prodemmcbootargs \0" \
+-	"sd2load=ext4load mmc 1:2 0x48080000 boot/Image;ext4load mmc 1:2 0x48000000 boot/r9a09g056n44-dev.dtb;run prodsdbootargs \0" \
++	"ocaaddr=0xA8000000 \0"     \
++	"ocabin=OpenCV_Bin.bin \0"  \
++	"codaddr=0xAFD00000 \0"     \
++	"codbin=Codec_Bin.bin \0"   \
++	"emmcload=ext4load mmc 0:2 ${ocaaddr} boot/${ocabin}; ext4load mmc 0:2 ${codaddr} boot/${codbin}; ext4load mmc 0:2 0x48080000 boot/Image;ext4load mmc 0:2 0x48000000 boot/r9a09g056n44-dev.dtb;run prodemmcbootargs \0" \
++	"sd2load=ext4load mmc 1:2 ${ocaaddr} boot/${ocabin}; ext4load mmc 1:2 ${codaddr} boot/${codbin}; ext4load mmc 1:2 0x48080000 boot/Image;ext4load mmc 1:2 0x48000000 boot/r9a09g056n44-dev.dtb;run prodsdbootargs \0" \
+ 	"bootcmd_check=if mmc dev 1; then run sd2load; else run emmcload; fi \0"
+ 
+ #define CONFIG_BOOTCOMMAND	"env default -a;run bootcmd_check;run bootimage"
+diff --git a/include/configs/rzv2n-evk.h b/include/configs/rzv2n-evk.h
+index 57cd2d8f19..97e9f83418 100644
+--- a/include/configs/rzv2n-evk.h
++++ b/include/configs/rzv2n-evk.h
+@@ -65,8 +65,12 @@
+ 	"prodsdbootargs=setenv bootargs rw rootwait earlycon root=/dev/mmcblk1p2 \0" \
+ 	"prodemmcbootargs=setenv bootargs rw rootwait earlycon root=/dev/mmcblk0p2 \0" \
+ 	"bootimage=booti 0x48080000 - 0x48000000 \0" \
+-	"emmcload=ext4load mmc 0:2 0x48080000 boot/Image;ext4load mmc 0:2 0x48000000 boot/r9a09g056n44-evk.dtb;run prodemmcbootargs \0" \
+-	"sd1load=ext4load mmc 1:2 0x48080000 boot/Image;ext4load mmc 1:2 0x48000000 boot/r9a09g056n44-evk.dtb;run prodsdbootargs \0" \
++	"ocaaddr=0xA8000000 \0"     \
++	"ocabin=OpenCV_Bin.bin \0"  \
++	"codaddr=0xAFD00000 \0"     \
++	"codbin=Codec_Bin.bin \0"   \
++	"emmcload=ext4load mmc 0:2 ${ocaaddr} boot/${ocabin}; ext4load mmc 0:2 ${codaddr} boot/${codbin}; ext4load mmc 0:2 0x48080000 boot/Image;ext4load mmc 0:2 0x48000000 boot/r9a09g056n44-evk.dtb;run prodemmcbootargs \0" \
++	"sd1load=ext4load mmc 1:2 ${ocaaddr} boot/${ocabin}; ext4load mmc 1:2 ${codaddr} boot/${codbin}; ext4load mmc 1:2 0x48080000 boot/Image;ext4load mmc 1:2 0x48000000 boot/r9a09g056n44-evk.dtb;run prodsdbootargs \0" \
+ 	"bootcmd_check=if mmc dev 1; then run sd1load; else run emmcload; fi \0"
+ 
+ #define CONFIG_BOOTCOMMAND	"env default -a;run bootcmd_check;run bootimage"
+-- 
+2.25.1
+

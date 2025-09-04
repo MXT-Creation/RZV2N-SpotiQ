@@ -1,0 +1,18 @@
+diff --git a/drivers/gpu/drm/renesas/rz-du/rzg2l_mipi_dsi.c b/drivers/gpu/drm/renesas/rz-du/rzg2l_mipi_dsi.c
+index 933e9e6e0..f39318ebb 100644
+--- a/drivers/gpu/drm/renesas/rz-du/rzg2l_mipi_dsi.c
++++ b/drivers/gpu/drm/renesas/rz-du/rzg2l_mipi_dsi.c
+@@ -967,6 +967,13 @@ static int rzg2l_mipi_dsi_attach(struct drm_bridge *bridge,
+ {
+ 	struct rzg2l_mipi_dsi *dsi = bridge_to_rzg2l_mipi_dsi(bridge);
+ 
++	/* Add dirty patch to put DSI in LP11 */
++	struct drm_display_mode mode;
++	mode.clock = 74250;
++
++	rzg2l_mipi_dsi_startup(dsi, &mode);
++	/* dirty patch end */
++	
+ 	return drm_bridge_attach(bridge->encoder, dsi->next_bridge, bridge,
+ 				 flags);
+ }

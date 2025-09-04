@@ -1,0 +1,37 @@
+From 89f41ab3e976219d7bc5f8186c62ffe97df830e8 Mon Sep 17 00:00:00 2001
+From: canhdao <canh.dao.ct@renesas.com>
+Date: Tue, 4 Mar 2025 15:56:03 +0700
+Subject: [PATCH] Update-the-return-for-dma_buf_vmap
+
+This commit updates the return value for dma buf vmap func because the kernel6.1 updated
+
+Signed-off-by: canhdao <canh.dao.ct@renesas.com>
+---
+ .../files/mmngrbuf/drv/mmngr_buf_drv.c                | 11 +++++++++--
+ 1 file changed, 9 insertions(+), 2 deletions(-)
+
+diff --git a/mmngr_drv/mmngrbuf/mmngrbuf-module/files/mmngrbuf/drv/mmngr_buf_drv.c b/mmngr_drv/mmngrbuf/mmngrbuf-module/files/mmngrbuf/drv/mmngr_buf_drv.c
+index 5b4dde7..e1897ac 100644
+--- a/mmngr_drv/mmngrbuf/mmngrbuf-module/files/mmngrbuf/drv/mmngr_buf_drv.c
++++ b/mmngr_drv/mmngrbuf/mmngrbuf-module/files/mmngrbuf/drv/mmngr_buf_drv.c
+@@ -250,8 +250,15 @@ static int dmabuf_mmap(struct dma_buf *buf, struct vm_area_struct *vma)
+ static int dmabuf_vmap(struct dma_buf *buf, struct iosys_map *map)
+ {
+ 	struct MM_BUF_PRIVATE *priv = buf->priv;
+-
+-	return (int)(uintptr_t)phys_to_virt(priv->hard_addr);
++	void *ptr = phys_to_virt(priv->hard_addr);
++	 
++	if (ptr)
++	{
++		    iosys_map_set_vaddr(map, ptr);
++		    return 0;
++	}
++	 
++	return -EINVAL;
+ }
+ 
+ static void dmabuf_vunmap(struct dma_buf *buf, struct iosys_map *map)
+-- 
+2.25.1
+

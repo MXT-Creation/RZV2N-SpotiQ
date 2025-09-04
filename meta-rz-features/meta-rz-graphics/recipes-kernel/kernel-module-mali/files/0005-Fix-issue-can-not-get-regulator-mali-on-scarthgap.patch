@@ -1,0 +1,26 @@
+From 7fe599f4f789b199603d89b52950108977c6d323 Mon Sep 17 00:00:00 2001
+From: Sang Ngo <sang.ngo.yf@renesas.com>
+Date: Tue, 8 Oct 2024 13:54:58 +0700
+Subject: [PATCH] Fix issue: can not get regulator mali on scarthgap
+
+Signed-off-by: Sang Ngo <sang.ngo.yf@renesas.com>
+---
+ drivers/gpu/arm/midgard/mali_kbase_core_linux.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/arm/midgard/mali_kbase_core_linux.c b/drivers/gpu/arm/midgard/mali_kbase_core_linux.c
+index 7b83103..5dee915 100644
+--- a/drivers/gpu/arm/midgard/mali_kbase_core_linux.c
++++ b/drivers/gpu/arm/midgard/mali_kbase_core_linux.c
+@@ -4440,7 +4440,7 @@ int power_control_init(struct kbase_device *kbdev)
+ 	int err = 0;
+ 	unsigned int i;
+ #if defined(CONFIG_REGULATOR)
+-	static const char *const regulator_names[] = { "mali" };
++	static const char *const regulator_names[] = { "mali", NULL };
+ #endif /* CONFIG_REGULATOR */
+ 
+ 	if (!kbdev)
+-- 
+2.25.1
+

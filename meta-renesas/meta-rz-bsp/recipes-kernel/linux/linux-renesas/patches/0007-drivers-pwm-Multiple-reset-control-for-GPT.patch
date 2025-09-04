@@ -1,0 +1,32 @@
+From 948682247fca95697f6e0d7bd6ebf86c20d37980 Mon Sep 17 00:00:00 2001
+From: LongLuu <long.luu.ur@renesas.com>
+Date: Mon, 4 Jul 2022 15:21:25 +0700
+Subject: [PATCH 07/20] drivers: pwm: Multiple reset control for GPT
+
+All GPT channels using 1 reset control, it causes conflict
+when enable multiple channel at one time. This patch
+modify devm_reset_control_get to devm_reset_control_get_shared
+so that all GPT channels can enable at one time.
+
+Signed-off-by: LongLuu <long.luu.ur@renesas.com>
+Signed-off-by: Au Dang <au.dang.jx@renesas.com>
+---
+ drivers/pwm/gpt-rzg2l.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/pwm/gpt-rzg2l.c b/drivers/pwm/gpt-rzg2l.c
+index a3d18a161548..e9e3887ffbca 100644
+--- a/drivers/pwm/gpt-rzg2l.c
++++ b/drivers/pwm/gpt-rzg2l.c
+@@ -1631,7 +1631,7 @@ static int rzg2l_gpt_probe(struct platform_device *pdev)
+ 		dev_info(&pdev->dev, "GPT not use POEG\n");
+ 	}
+ 
+-	rzg2l_gpt->rstc = devm_reset_control_get(&pdev->dev, NULL);
++	rzg2l_gpt->rstc = devm_reset_control_get_shared(&pdev->dev, NULL);
+ 	if (IS_ERR(rzg2l_gpt->rstc)) {
+ 		dev_err(&pdev->dev, "failed to get cpg reset\n");
+ 		return PTR_ERR(rzg2l_gpt->rstc);
+-- 
+2.25.1
+
