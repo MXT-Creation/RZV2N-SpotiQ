@@ -1,0 +1,47 @@
+--- a/board/renesas/rzv2n-dev/rzv2n-dev.c
++++ b/board/renesas/rzv2n-dev/rzv2n-dev.c
+@@ -35,6 +35,9 @@
+ #define PWPR_REGWE_A			BIT(6)
+ #define	PWPR_REGWE_B			BIT(5)
+ 
++#define	P_28				(PFC_BASE + 0x0028)
++#define	PM_28				(PFC_BASE + 0x0150)
++#define	PMC_28				(PFC_BASE + 0x0228)
+ #define	P_2A				(PFC_BASE + 0x002A)
+ #define	PM_2A				(PFC_BASE + 0x0154)
+ #define	PMC_2A				(PFC_BASE + 0x022A)
+@@ -92,20 +95,20 @@
+ {
+ 	*(volatile u32 *)PWPR |= (PWPR_REGWE_A | PWPR_REGWE_B);
+ 
+-#if CONFIG_TARGET_RZV2N_DEV
+-	/* PA5,PA4 port	*/
+-	*(volatile u8 *)PMC_2A   &= ~(0x03 << 4);
+-	/* PA5=1,PA4=0 */
+-	*(volatile u8 *)P_2A      = (*(volatile u32 *)P_2A  & ~(0x03 << 4)) | (0x01 << 5);
+-	/* PA5,PA4 output */
+-	*(volatile u16 *)PM_2A    = (*(volatile u32 *)PM_2A & ~(0x0f << 8)) | (0x0c << 8);
+-#endif
+-#if CONFIG_TARGET_RZV2N_EVK
+-	/* SD1  */
+-	*(volatile u8 *)PMC_2A   &= ~(0x03 << 2);/* PA3,PA2 port */
+-	*(volatile u8 *)P_2A      = (*(volatile u32 *)P_2A  & ~(0x03<<2)) | (0x01 <<3); /* PA3=1,PA2=0		*/
+-	*(volatile u16 *)PM_2A    = (*(volatile u32 *)PM_2A & ~(0x0f<<4)) | (0x0a <<4); /* PA3,PA2 output	*/
+-#endif
++	/* PA7	*/
++	*(volatile u8 *)PMC_2A   &= ~(0x03 << 6);
++	/* PA7=1 */
++	*(volatile u8 *)P_2A      = (*(volatile u32 *)P_2A  & ~(0x03 << 6)) | (0x02 << 6);
++	/* PA7 output */
++	*(volatile u16 *)PM_2A    = (*(volatile u32 *)PM_2A & ~(0x0F << 12)) | (0x0F << 12);
++	
++        /* P83	*/
++	*(volatile u8 *)PMC_28   &= ~(0x01 << 3);
++	/* P83=1 */
++	*(volatile u8 *)P_28      = (*(volatile u32 *)P_28  & ~(0x01 << 3)) | (0x01 << 3);
++	/* P83 output */
++	*(volatile u16 *)PM_28    = (*(volatile u32 *)PM_2A & ~(0x03 << 6)) | (0x03 << 6);
++
+ 	/* I2C8 */
+ 	*(volatile u32 *)PFC_20  = (*(volatile u32 *)PFC_20 & 0x00FFFFFF) | (0x01 << 28) | (0x01 << 24);
+ 	*(volatile u8 *)PMC_20   |= (0x03) << 6;	/* P07,P06 multiplexed function	*/

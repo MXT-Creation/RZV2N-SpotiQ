@@ -1,0 +1,31 @@
+SUMMARY = "GStreamer VSPM filter plugin"
+SECTION = "multimedia"
+LICENSE = "LGPL-2.0-only"
+DEPENDS = "gstreamer1.0 gstreamer1.0-plugins-base pkgconfig vspmif-user-module kernel-module-mmngr kernel-module-mmngrbuf mmngr-user-module mmngrbuf-user-module"
+LIC_FILES_CHKSUM = "file://COPYING.LIB;md5=6762ed442b3822387a51c92d928ead0d"
+inherit autotools pkgconfig
+
+GST_PLUGIN_VSPMFILTER_URL = "git://github.com/renesas-rz/rzg_gstreamer_vspmfilter"
+
+BRANCH = "rz_g2l"
+
+SRC_URI = " \
+    ${GST_PLUGIN_VSPMFILTER_URL};protocol=https;branch=${BRANCH} \
+    file://0001-Update-correct-base-number-of-VTOP-ioctl.patch \
+"
+
+SRCREV = "292f1df4f0ab58a7b533480b0c75493f56152b87"
+
+S = "${WORKDIR}/git"
+PV = "1.22.12"
+
+FILES:${PN} = " \
+    ${libdir}/gstreamer-1.0/libgstvspmfilter.so \
+"
+
+FILES:${PN}-dev = "${libdir}/gstreamer-1.0/libgstvspmfilter.la"
+FILES:${PN}-staticdev = "${libdir}/gstreamer-1.0/libgstvspmfilter.a"
+FILES:${PN}-dbg = " \
+    ${libdir}/gstreamer-1.0/.debug \
+    ${prefix}/src"
+

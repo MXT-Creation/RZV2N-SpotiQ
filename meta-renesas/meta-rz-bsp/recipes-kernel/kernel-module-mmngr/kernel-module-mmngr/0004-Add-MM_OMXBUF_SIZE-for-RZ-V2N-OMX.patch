@@ -1,0 +1,28 @@
+From 40778e6d3a07b69e4bda755cf784d98abed444ba Mon Sep 17 00:00:00 2001
+From: Thang Nguyen <thang.nguyen.ue@renesas.com>
+Date: Thu, 2 Jan 2025 18:40:10 +0700
+Subject: [PATCH] Add MM_OMXBUF_SIZE for RZ/V2N OMX
+
+This commit is created to add MM_OMXBUF_SIZE for RZ/V2N.
+---
+ .../mmngr/mmngr-module/files/mmngr/include/mmngr_private.h    | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/mmngr_drv/mmngr/mmngr-module/files/mmngr/include/mmngr_private.h b/mmngr_drv/mmngr/mmngr-module/files/mmngr/include/mmngr_private.h
+index 2d012b2..4d404a9 100644
+--- a/mmngr_drv/mmngr/mmngr-module/files/mmngr/include/mmngr_private.h
++++ b/mmngr_drv/mmngr/mmngr-module/files/mmngr/include/mmngr_private.h
+@@ -204,6 +204,10 @@ static void mm_exit(void);
+ 
+ static int validate_memory_map(void);
+ 
++#ifdef MMNGR_RZV2N
++#define MM_OMXBUF_SIZE      (256 * 1024 * 1024)
++#endif /* MMNGR_RZV2N */
++
+ #ifdef MMNGR_SALVATORX
+ #define MM_OMXBUF_SIZE		(256 * 1024 * 1024)
+ #endif /* MMNGR_SALVATORX */
+-- 
+2.25.1
+

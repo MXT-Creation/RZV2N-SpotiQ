@@ -1,0 +1,37 @@
+diff --git a/drivers/media/platform/renesas/rzg2l-cru/rzg2l-video.c b/drivers/media/platform/renesas/rzg2l-cru/rzg2l-video.c
+index c1dec98..70d4034 100644
+--- a/drivers/media/platform/renesas/rzg2l-cru/rzg2l-video.c
++++ b/drivers/media/platform/renesas/rzg2l-cru/rzg2l-video.c
+@@ -328,9 +328,9 @@ static void rzg2l_cru_initialize_axi(struct rzg2l_cru_dev *cru)
+ 	for (slot = 0; slot < cru->num_buf; slot++)
+ 		rzg2l_cru_fill_hw_slot(cru, slot);
+ 
+-	/* Set AXI burst max length to recommended setting */
++	/* Set AXI burst max length for e-CAM22_CURZH */
+ 	reg = rzg2l_cru_read(cru, AMnAXIATTR) & ~AMnAXIATTR_AXILEN;
+-	rzg2l_cru_write(cru, AMnAXIATTR, reg | 0xF);
++	rzg2l_cru_write(cru, AMnAXIATTR, reg | 0x6);
+ }
+ 
+ static void rzg2l_cru_csi2_setup(struct rzg2l_cru_dev *cru, bool *input_is_yuv,
+@@ -796,20 +796,6 @@ static irqreturn_t rzv2h_cru_irq(int irq, void *data)
+ 		cru->state = RZG2L_CRU_DMA_RUNNING;
+ 	}
+ 
+-	if (slot != prev_slot[cru->id]) {
+-		/* Update value of previous memory bank slot */
+-		prev_slot[cru->id] = slot;
+-	} else {
+-		/*
+-		 * AXI-Bus congestion maybe occurred.
+-		 * Set auto recovery mode to clear all FIFOs
+-		 * and resume transmission.
+-		 */
+-		rzg2l_cru_write(cru, AMnFIFO, 0);
+-
+-		dev_dbg(cru->dev, "Dropping frame %u with CRU channel\n", cru->sequence);
+-	}
+-
+ 	/* Capture frame */
+ 	if (cru->queue_buf[slot]) {
+ 		cru->queue_buf[slot]->field = cru->format.field;

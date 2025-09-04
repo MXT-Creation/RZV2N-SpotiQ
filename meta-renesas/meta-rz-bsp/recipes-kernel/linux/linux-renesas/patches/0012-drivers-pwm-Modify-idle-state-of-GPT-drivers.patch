@@ -1,0 +1,36 @@
+From dbae4863a64ffc6b47f6b9e2e36312d4cd036cf7 Mon Sep 17 00:00:00 2001
+From: Long Luu <long.luu.ur@renesas.com>
+Date: Tue, 5 Apr 2022 17:34:05 +0700
+Subject: [PATCH 12/20] drivers: pwm: Modify idle state of GPT drivers
+
+Idle state of GPT output now can change compare
+with GPT polarity.
+
+Signed-off-by: Long Luu <long.luu.ur@renesas.com>
+Signed-off-by: Au Dang <au.dang.jx@renesas.com>
+---
+ drivers/pwm/gpt-rzg2l.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/pwm/gpt-rzg2l.c b/drivers/pwm/gpt-rzg2l.c
+index 714b1a499ab0..32fffd60306e 100644
+--- a/drivers/pwm/gpt-rzg2l.c
++++ b/drivers/pwm/gpt-rzg2l.c
+@@ -64,12 +64,12 @@
+ #define GTCR_PRESCALE_MASK	(0x7<<24)
+ #define GTIOR_CHANNEL_B_OUTPUT_MASK	(0x01FF<<16)
+ #define GTIOB_OUTPUT_HIGH_END_TOGGLE_COMPARE	(0x11B<<16)
+-#define GTIOB_OUTPUT_LOW_END_TOGGLE_COMPARE	(0x107<<16)
++#define GTIOB_OUTPUT_LOW_END_TOGGLE_COMPARE	(0x147<<16)
+ /* GTIOR.GTIOB = 11001 */
+ /* GTIOR.OBE = 1 */
+ #define GTIOR_CHANNEL_A_OUTPUT_MASK	0x01FF
+ #define GTIOA_OUTPUT_HIGH_END_TOGGLE_COMPARE	0x11B
+-#define GTIOA_OUTPUT_LOW_END_TOGGLE_COMPARE	0x107
++#define GTIOA_OUTPUT_LOW_END_TOGGLE_COMPARE	0x147
+ #define GTCR_CST	0x00000001
+ #define UP_COUNTING	3
+ #define P0_1024		(0x05<<24)
+-- 
+2.25.1
+

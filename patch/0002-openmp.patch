@@ -1,0 +1,10 @@
+diff --git a/conf/local.conf b/conf/local.conf
+index 5b03895..03d90ef 100644
+--- a/conf/local.conf
++++ b/conf/local.conf
+@@ -313,3 +313,5 @@ SDKIMAGE_FEATURES:append = " staticdev-pkgs dev-pkgs dbg-pkgs"
+ IMAGE_INSTALL:append = " psplash"
+ 
+ IMAGE_INSTALL:append = " tesseract tesseract-lang "
++
++CORE_IMAGE_EXTRA_INSTALL += "libgomp libgomp-dev libgomp-staticdev"

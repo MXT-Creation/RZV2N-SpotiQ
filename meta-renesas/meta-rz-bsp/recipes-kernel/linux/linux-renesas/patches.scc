@@ -1,0 +1,24 @@
+# Additional patches to support GPT
+patch patches/0001-drivers-pwm-Add-support-GPT-drivers.patch
+patch patches/0002-drivers-pwm-Add-pm_runtime-support-to-gpt-driver.patch
+patch patches/0003-drivers-pwm-Add-double-output-on-single-channel-for-.patch
+patch patches/0004-drivers-pwm-Add-inverse-polarity-for-GPT-on-G2L.patch
+patch patches/0005-drivers-pwm-Add-POEG-support-for-GPT-on-G2L.patch
+patch patches/0006-drivers-pwm-Add-deadtime-support-for-GPT-on-G2L.patch
+patch patches/0007-drivers-pwm-Multiple-reset-control-for-GPT.patch
+patch patches/0008-drivers-pwm-Add-gpt-choosing-GPT-operation.patch
+patch patches/0009-drivers-pwm-Add-counter-mode-for-GPT.patch
+patch patches/0010-drivers-pwm-Add-choosing-POEG-via-sysfs.patch
+patch patches/0011-drivers-pwm-Add-output-pulse-number-for-GPT.patch
+patch patches/0012-drivers-pwm-Modify-idle-state-of-GPT-drivers.patch
+patch patches/0013-drivers-pwm-gpt-rzg2l-Update-new-ops-and-function-fo.patch
+patch patches/0014-arm64-defconfig-Enable-GPT-driver.patch
+patch patches/0015-arm64-dts-renesas-r9a09g056-Add-GPT0-1-node-for-RZ-V.patch
+patch patches/0016-arm64-dts-renesas-r9a09g056n44-evk-Enable-GPT0-chann.patch
+patch patches/0017-drivers-pwm-gpt-rzg2l-Add-missing-get-reset-for-GPT.patch
+patch patches/0018-pwm-gpt-rzg2l-Assert-Deassert-reset-control-on-PM-su.patch
+patch patches/0019-pwm-gpt-rzg2l-Fix-wrongly-generated-output-pulse-num.patch
+# CVE-2024-53104
+patch patches/0001-media-uvcvideo-Skip-parsing-frames-of-type-UVC_VS_UN.patch
+# CRU setting
+patch patches/0001-cru-setting-AMnAXIATTR-AMnFIFO.patch

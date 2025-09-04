@@ -1,0 +1,31 @@
+diff --git a/plat/renesas/rz/soc/v2n/drivers/ddr/ddr_param_def_lpddr4.c b/plat/renesas/rz/soc/v2n/drivers/ddr/ddr_param_def_lpddr4.c
+index f41635e..87e921f 100644
+--- a/plat/renesas/rz/soc/v2n/drivers/ddr/ddr_param_def_lpddr4.c
++++ b/plat/renesas/rz/soc/v2n/drivers/ddr/ddr_param_def_lpddr4.c
+@@ -32318,7 +32318,7 @@ const uint32_t param_setup_mc[][2] = {
+ 	{0x0040, 0x11220408},
+ 	{0x0041, 0x04112204},
+ 	{0x0042, 0x01000000},
+-	{0x0043, 0x01010001},
++	{0x0043, 0x01010101},
+ 	{0x0044, 0x00000003},
+ 	{0x0045, 0x00040301},
+ 	{0x0046, 0x00000260},
+@@ -32461,7 +32461,7 @@ const uint32_t param_setup_mc[][2] = {
+ 	{0x00cf, 0x34340000},
+ 	{0x00d0, 0x34343434},
+ 	{0x00d1, 0x41414141},
+-	{0x00d2, 0x08084141},
++	{0x00d2, 0x28284141},
+ 	{0x00d3, 0x19191919},
+ 	{0x00d4, 0x00001919},
+ 	{0x00d5, 0x00000000},
+@@ -33012,7 +33012,7 @@ const uint32_t param_setup_mc[][2] = {
+ 	{0x02f6, 0x00200302},
+ 	{0x02f7, 0x00000000},
+ 	{0x02f8, 0x04001800},
+-	{0x02f9, 0x01001804},
++	{0x02f9, 0x01011804},
+ 	{0x02fa, 0x01000101},
+ 	{0x02fb, 0x01000101},
+ 	{0x02fc, 0x01000100},

@@ -1,0 +1,124 @@
+From 0a2c1d67daa607e2d9ba6999596e2ac6b6b56b84 Mon Sep 17 00:00:00 2001
+From: Sang Ngo <sang.ngo.yf@renesas.com>
+Date: Mon, 13 May 2024 10:18:55 +0700
+Subject: [PATCH] Add reset control for driver
+
+---
+ .../gpu/arm/midgard/mali_kbase_core_linux.c   | 32 +++++++++++++++++++
+ drivers/gpu/arm/midgard/mali_kbase_defs.h     |  2 ++
+ .../devicetree/mali_kbase_runtime_pm.c        | 15 +++++++++
+ 3 files changed, 49 insertions(+)
+
+diff --git a/drivers/gpu/arm/midgard/mali_kbase_core_linux.c b/drivers/gpu/arm/midgard/mali_kbase_core_linux.c
+index dad363d..1874905 100644
+--- a/drivers/gpu/arm/midgard/mali_kbase_core_linux.c
++++ b/drivers/gpu/arm/midgard/mali_kbase_core_linux.c
+@@ -104,6 +104,7 @@
+ #endif /* CONFIG_SYNC_FILE */
+ #include <linux/clk.h>
+ #include <linux/clk-provider.h>
++#include <linux/reset.h>
+ #include <linux/delay.h>
+ #include <linux/log2.h>
+ #include <linux/mali_hw_access.h>
+@@ -4796,6 +4797,27 @@ int power_control_init(struct kbase_device *kbdev)
+ 	kbdev->nr_clocks = i;
+ 	dev_dbg(&pdev->dev, "Clocks probed: %u\n", kbdev->nr_clocks);
+ 
++	for (i = 0; i < BASE_MAX_NR_CLOCKS_REGULATORS; i++) {
++		kbdev->resets[i] = __of_reset_control_get(kbdev->dev->of_node, NULL, i,
++							false, false);
++		if (IS_ERR_OR_NULL(kbdev->resets[i])) {
++			err = PTR_ERR(kbdev->resets[i]);
++			kbdev->resets[i] = NULL;
++			break;
++		}
++		err = reset_control_deassert(kbdev->resets[i]);
++		if (err) {
++			dev_err(kbdev->dev,
++				"Failed to deassert reset signal (%d)\n",
++				err);
++			reset_control_put(kbdev->resets[i]);
++			break;
++		}
++	}
++
++	kbdev->nr_resets = i;
++	dev_dbg(&pdev->dev, "Get %u reset lines\n", kbdev->nr_resets);
++
+ 	/* Any error in parsing the OPP table from the device file
+ 	 * shall be ignored. The fact that the table may be absent or wrong
+ 	 * on the device tree of the platform shouldn't prevent the driver
+@@ -4879,6 +4901,16 @@ void power_control_term(struct kbase_device *kbdev)
+ 			break;
+ 	}
+ 
++	for (i = 0; i < BASE_MAX_NR_CLOCKS_REGULATORS; i++) {
++		if (kbdev->resets[i]) {
++			if (reset_control_status(kbdev->resets[i]) == 0)
++				reset_control_assert(kbdev->resets[i]);
++			reset_control_put(kbdev->resets[i]);
++			kbdev->resets[i] = NULL;
++		} else
++			 break;
++	}
++
+ #if defined(CONFIG_OF) && defined(CONFIG_REGULATOR)
+ 	for (i = 0; i < BASE_MAX_NR_CLOCKS_REGULATORS; i++) {
+ 		if (kbdev->regulators[i]) {
+diff --git a/drivers/gpu/arm/midgard/mali_kbase_defs.h b/drivers/gpu/arm/midgard/mali_kbase_defs.h
+index f3c8340..b65e858 100644
+--- a/drivers/gpu/arm/midgard/mali_kbase_defs.h
++++ b/drivers/gpu/arm/midgard/mali_kbase_defs.h
+@@ -1093,6 +1093,8 @@ struct kbase_device {
+ 
+ 	struct clk *clocks[BASE_MAX_NR_CLOCKS_REGULATORS];
+ 	unsigned int nr_clocks;
++	struct reset_control *resets[BASE_MAX_NR_CLOCKS_REGULATORS];
++	unsigned int nr_resets;
+ #if IS_ENABLED(CONFIG_REGULATOR)
+ 	struct regulator *regulators[BASE_MAX_NR_CLOCKS_REGULATORS];
+ 	unsigned int nr_regulators;
+diff --git a/drivers/gpu/arm/midgard/platform/devicetree/mali_kbase_runtime_pm.c b/drivers/gpu/arm/midgard/platform/devicetree/mali_kbase_runtime_pm.c
+index 9e3f789..5b2beac 100644
+--- a/drivers/gpu/arm/midgard/platform/devicetree/mali_kbase_runtime_pm.c
++++ b/drivers/gpu/arm/midgard/platform/devicetree/mali_kbase_runtime_pm.c
+@@ -25,6 +25,7 @@
+ #include <linux/pm_runtime.h>
+ #include <linux/clk.h>
+ #include <linux/clk-provider.h>
++#include <linux/reset.h>
+ #include <linux/regulator/consumer.h>
+ 
+ #include "mali_kbase_config_platform.h"
+@@ -42,6 +43,13 @@ static void enable_gpu_power_control(struct kbase_device *kbdev)
+ 	}
+ #endif
+ 
++	for (i = 0; i < kbdev->nr_resets; i++) {
++		if (WARN_ON(kbdev->resets[i] == NULL))
++			;
++		else if (reset_control_status(kbdev->resets[i]) > 0)
++			WARN_ON(reset_control_deassert(kbdev->resets[i]));
++	};
++
+ 	for (i = 0; i < kbdev->nr_clocks; i++) {
+ 		if (WARN_ON(kbdev->clocks[i] == NULL))
+ 			;
+@@ -63,6 +71,13 @@ static void disable_gpu_power_control(struct kbase_device *kbdev)
+ 		}
+ 	}
+ 
++	for (i = 0; i < kbdev->nr_resets; i++) {
++		if (WARN_ON(kbdev->resets[i] == NULL))
++			;
++		else if (reset_control_status(kbdev->resets[i]) == 0)
++			WARN_ON(reset_control_assert(kbdev->resets[i]));
++	};
++
+ #if defined(CONFIG_REGULATOR)
+ 	for (i = 0; i < kbdev->nr_regulators; i++) {
+ 		if (WARN_ON(kbdev->regulators[i] == NULL))
+-- 
+2.25.1
+
