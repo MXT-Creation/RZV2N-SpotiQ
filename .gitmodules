@@ -1,0 +1,7 @@
+[submodule "meta-rzv2n-ros2"]
+	path = meta-rzv2n-ros2
+	url = https://github.com/renesas-rz/rzv2n_ros2.git
+[submodule "meta-ros"]
+	path = meta-ros
+	url = https://github.com/ros/meta-ros.git
+	branch = scarthgap
