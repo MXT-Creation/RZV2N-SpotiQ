@@ -5,3 +5,6 @@
 	path = meta-ros
 	url = https://github.com/ros/meta-ros.git
 	branch = scarthgap
+[submodule "poky"]
+	path = poky
+	url = https://github.com/yoctoproject/poky
