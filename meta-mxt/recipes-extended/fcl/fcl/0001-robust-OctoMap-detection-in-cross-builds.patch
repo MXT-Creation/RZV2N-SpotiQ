@@ -1,0 +1,13 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index e90e56b2..b71dc973 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -208,7 +208,7 @@ set(PKG_EXTERNAL_DEPS "ccd eigen3")
+ # and OCTOMAP_LIBRARY, OCTOMATH_LIBRARY, and OCTOMAP_VERSION
+ #===============================================================================
+ option(FCL_WITH_OCTOMAP "OctoMap library support" ON)
+-set(FCL_HAVE_OCTOMAP 0)
++set(FCL_HAVE_OCTOMAP 1)
+ 
+ if(FCL_WITH_OCTOMAP)
+   find_package(octomap QUIET)

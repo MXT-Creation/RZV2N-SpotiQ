@@ -1,4 +1,4 @@
-SUMMARY = "xArm C++ SDK library (ament package)"
+SUMMARY = "xArm api library (ament package)"
 AUTHOR = "Marius Muresan <marius.muresan@mxt.ro>"
 LICENSE = "BSD-3-Clause"
 LIC_FILES_CHKSUM = "file://../LICENSE;md5=55e29519914eb9bed7ac296f34c330f5"
@@ -40,5 +40,6 @@ EXTRA_OECMAKE:append = " \
 "
 
 RDEPENDS:${PN} += "xarm-msgs xarm-sdk"
+
 # Packaging
 FILES:${PN} += "${ros_prefix}/*"
