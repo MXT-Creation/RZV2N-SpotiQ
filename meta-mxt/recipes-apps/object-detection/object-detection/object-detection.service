@@ -1,0 +1,12 @@
+[Unit]
+Description=RZ/VN Object Detection Demo
+After=multi-user.target local-fs.target weston@root.service
+
+[Service]
+ExecStart=/home/root/start_demo.sh
+Type=simple
+User=root
+Restart=no
+
+[Install]
+WantedBy=multi-user.target weston@root.service
