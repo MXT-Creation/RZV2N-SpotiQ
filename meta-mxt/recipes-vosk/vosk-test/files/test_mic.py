@@ -2,7 +2,7 @@ import queue, sys, json
 import sounddevice as sd
 from vosk import Model, KaldiRecognizer
 
-MODEL_PATH = "/root/models/vosk-model-small-en-us-0.15"  # adjust if needed
+MODEL_PATH = "/usr/share/vosk/models/en-us"
 
 # Detect input device & its default samplerate
 inp = sd.query_devices(kind='input')
