@@ -10,6 +10,7 @@ SRC_URI:append +=  "\
 	file://0001-drivers-media-i2c-tevs-backport-driver-TechNexi.patch \
 	file://0002_mipi_dsi_dirty_patch_to_set_LP11_mode.patch \
 	file://0003_tc358767.patch \
+	file://0004-media-uvc-add-RealSense-custom-pixel-formats-Y16I-RW.patch \
 "
 
 do_compile:prepend() {

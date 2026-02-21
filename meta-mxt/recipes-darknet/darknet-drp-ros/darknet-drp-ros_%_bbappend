@@ -1,0 +1,22 @@
+#
+# Copyright (c) 2026 MXT
+#
+
+FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
+
+# Add multi-model support patch
+SRC_URI += " \
+    file://0001-darknet-drp-ros.patch \
+"
+
+# Add std_srvs dependency for model switching service
+DEPENDS += "std-srvs"
+
+# Add darknet_ros_msgs dependency (should already be there, but making it explicit)
+DEPENDS += "darknet-ros-msgs"
+
+# Add runtime dependency on darknet-drp-app (provides model binaries)
+RDEPENDS:${PN} += "darknet-drp-app"
+
+# Ensure proper build order
+do_configure[depends] += "darknet-drp-app:do_install"
