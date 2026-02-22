@@ -95,9 +95,10 @@ TABLE_Z = 0.0   # mm — table surface height in robot frame (assuming Z=0 at ta
 WORD_START     = "start"
 WORD_STOP      = "stop"
 WORD_CANCEL    = "cancel"
+WORD_DROP      = "drop"
 
 # All pickable object classes — must match YOLO label names exactly (lowercase)
-TARGET_CLASSES = ["cat", "dog"]
+TARGET_CLASSES = ["cat", "dog", "cow", "car"]
 
 
 def px_to_mm(px, py, object_z=90.0):
@@ -157,6 +158,7 @@ class SpotiQCoordinator(Node):
         self._robot_states_fresh = False
         self._robot_pose         = [0.0] * 6  # [x,y,z,roll,pitch,yaw] from robot_states
         self._active_target = None   # set when object word heard, cleared after pick or cancel
+        self._waiting_for_drop = False  # True when at hand drop position waiting for "drop" command
         
         # D435 depth handling
         self._depth_image = None
@@ -170,6 +172,10 @@ class SpotiQCoordinator(Node):
         
         self.declare_parameter("debug_pick", False)
         self._debug_pick = bool(self.get_parameter("debug_pick").value)
+        
+        self.declare_parameter("hand_drop", False)
+        self._hand_drop = bool(self.get_parameter("hand_drop").value)
+        self.get_logger().info(f"Hand drop mode: {self._hand_drop}")
         
         self.declare_parameter("movement_speed", 50)
         self._movement_speed = int(self.get_parameter("movement_speed").value)
@@ -259,7 +265,11 @@ class SpotiQCoordinator(Node):
         m = Bool(); m.data = on; self._pub_mute.publish(m)
 
     def _broadcast_cb(self):
-        self._pub_state.publish(self._make_str(self._state))
+        # Publish state with waiting_for_drop modifier
+        state_msg = self._state
+        if self._waiting_for_drop and self._state == self.PLACING:
+            state_msg = "WAITING_DROP"
+        self._pub_state.publish(self._make_str(state_msg))
 
     # ── Service call (threading.Event pattern — safe inside MultiThreadedExecutor)
 
@@ -782,6 +792,14 @@ class SpotiQCoordinator(Node):
             else:
                 self._info("Cancel: no active target.")
             return
+        
+        # DROP — handle when waiting at hand drop position
+        if word == WORD_DROP:
+            if self._waiting_for_drop:
+                threading.Thread(target=self._action_drop_from_hand, daemon=True).start()
+            else:
+                self._info("Not waiting for drop command")
+            return
 
         with self._lock:
             if self._busy:
@@ -1018,40 +1036,96 @@ class SpotiQCoordinator(Node):
 
         self._set_state(self.PLACING)
 
-        # ── Place path — use same Z height as pick ───────────────────────────
-        # Keep pick X/Y, raise Z to TRANSIT and push X forward to TRANSIT_X
-        # Then swing Y to deposit side, then descend to same height as pick
-        place_front  = [POSE_TRANSIT_X,  pick_y,       POSE_TRANSIT_Z, 3.14, 0.0, 0.0]  # in front, lifted, same Y
-        place_right  = [POSE_TRANSIT_X,  POSE_PLACE_Y, POSE_TRANSIT_Z, 3.14, 0.0, 0.0]  # swing to deposit Y
-        place_down   = [          0.0,   POSE_PLACE_Y, pick_z,         3.14, 0.0, 0.0]  # descend to SAME height as pick
+        # ── Place path — check hand_drop mode ─────────────────────────────────
+        if self._hand_drop:
+            # Hand drop mode: go to hand position [300, 0, 200] and wait for "drop" command
+            hand_position = [300.0, 0.0, 200.0, 3.14, 0.0, 0.0]
+            
+            if not step("Move to hand position", self._move_to, hand_position, self._movement_speed, ACC, 10.0): 
+                return self._abort()
+            
+            # Set flag and wait for "drop" voice command
+            self._waiting_for_drop = True
+            self._info("At hand position. Say 'drop' to release object.")
+            
+            # Wait loop - check every 0.5s for drop command or stop request
+            while self._waiting_for_drop:
+                if self._stop_req:
+                    self._waiting_for_drop = False
+                    return self._abort()
+                time.sleep(0.5)
+            
+            # Drop was triggered by voice command - _action_drop_from_hand handles return
+            return
+            
+        else:
+            # Normal automatic place mode (original behavior)
+            # Keep pick X/Y, raise Z to TRANSIT and push X forward to TRANSIT_X
+            # Then swing Y to deposit side, then descend to same height as pick
+            place_front  = [POSE_TRANSIT_X,  pick_y,       POSE_TRANSIT_Z, 3.14, 0.0, 0.0]  # in front, lifted, same Y
+            place_right  = [POSE_TRANSIT_X,  POSE_PLACE_Y, POSE_TRANSIT_Z, 3.14, 0.0, 0.0]  # swing to deposit Y
+            place_down   = [          0.0,   POSE_PLACE_Y, pick_z,         3.14, 0.0, 0.0]  # descend to SAME height as pick
 
-        # ── Return path — always through center position Y=-300 ──────────────
-        ret_lift     = [POSE_TRANSIT_X,  POSE_PLACE_Y, POSE_TRANSIT_Z, 3.14, 0.0, 0.0]  # lift back up
-        ret_swing    = [POSE_TRANSIT_X,  -300.0,       POSE_TRANSIT_Z, 3.14, 0.0, 0.0]  # swing back to CENTER Y=-300
-        # Final step: POSE_SCAN [0, -300, 280]
+            # ── Return path — always through center position Y=-300 ──────────────
+            ret_lift     = [POSE_TRANSIT_X,  POSE_PLACE_Y, POSE_TRANSIT_Z, 3.14, 0.0, 0.0]  # lift back up
+            ret_swing    = [POSE_TRANSIT_X,  -300.0,       POSE_TRANSIT_Z, 3.14, 0.0, 0.0]  # swing back to CENTER Y=-300
+            # Final step: POSE_SCAN [0, -300, 280]
 
-        if not step("Place: go front",    self._move_to, place_front, self._movement_speed, ACC, 10.0): return self._abort()
-        if not step("Place: swing right", self._move_to, place_right, self._movement_speed, ACC, 10.0): return self._abort()
-        if not step("Place: descend",     self._move_to, place_down,  self._movement_speed, ACC,  8.0): return self._abort()
-        if not step("Release gripper",    self._open_gripper):                                          return self._abort()
+            if not step("Place: go front",    self._move_to, place_front, self._movement_speed, ACC, 10.0): return self._abort()
+            if not step("Place: swing right", self._move_to, place_right, self._movement_speed, ACC, 10.0): return self._abort()
+            if not step("Place: descend",     self._move_to, place_down,  self._movement_speed, ACC,  8.0): return self._abort()
+            if not step("Release gripper",    self._open_gripper):                                          return self._abort()
+            
+            # Wait 0.5s before stopping vacuum to ensure object is released
+            time.sleep(0.5)
+            
+            if not step("Stop gripper",       self._stop_gripper):                                          return self._abort()
+            if not step("Return: lift",       self._move_to, ret_lift,    self._movement_speed, ACC,  5.0): return self._abort()
+            if not step("Return: swing back", self._move_to, ret_swing,   self._movement_speed, ACC, 10.0): return self._abort()
+            if not step("Return: scan pose",  self._move_to, POSE_SCAN,   self._movement_speed, ACC, 10.0): return self._abort()
+
+            # Success — clear target and ensure state is READY
+            self._active_target = None
+            if self._state != self.READY:  # force reset if somehow still in PICKING/PLACING
+                self._set_state(self.READY)
+            self._info(f"Done. '{tgt}' placed. Target cleared. Say an object name to pick again.")
+
+    def _action_drop_from_hand(self):
+        """
+        Called when "drop" voice command is heard while waiting at hand position.
+        Opens gripper, waits 1 second, stops gripper, returns to SCAN position.
+        """
+        self._info("Drop command received - releasing object")
+        self._waiting_for_drop = False  # Clear waiting flag
         
-        # Wait 0.5s before stopping vacuum to ensure object is released
-        time.sleep(0.5)
+        # Return path
+        ret_swing = [POSE_TRANSIT_X, -300.0, POSE_TRANSIT_Z, 3.14, 0.0, 0.0]  # swing back to CENTER Y=-300
         
-        if not step("Stop gripper",       self._stop_gripper):                                          return self._abort()
-        if not step("Return: lift",       self._move_to, ret_lift,    self._movement_speed, ACC,  5.0): return self._abort()
-        if not step("Return: swing back", self._move_to, ret_swing,   self._movement_speed, ACC, 10.0): return self._abort()
-        if not step("Return: scan pose",  self._move_to, POSE_SCAN,   self._movement_speed, ACC, 10.0): return self._abort()
-
+        # Open gripper
+        self._open_gripper()
+        self._info("Gripper opened")
+        
+        # Wait 1 second
+        time.sleep(1.0)
+        
+        # Stop gripper
+        self._stop_gripper()
+        self._info("Gripper stopped")
+        
+        # Return to SCAN position
+        self._move_to(ret_swing, self._movement_speed, 500, 10.0)
+        self._move_to(POSE_SCAN, self._movement_speed, 500, 10.0)
+        
         # Success — clear target and ensure state is READY
         self._active_target = None
-        if self._state != self.READY:  # force reset if somehow still in PICKING/PLACING
+        if self._state != self.READY:
             self._set_state(self.READY)
-        self._info(f"Done. '{tgt}' placed. Target cleared. Say an object name to pick again.")
+        self._info("Object dropped. Target cleared. Ready for next pick.")
 
     def _abort(self):
         self._info("Sequence aborted — returning to HOME")
         self._active_target = None
+        self._waiting_for_drop = False  # Clear waiting flag if aborting
         self._action_stop()
 
 

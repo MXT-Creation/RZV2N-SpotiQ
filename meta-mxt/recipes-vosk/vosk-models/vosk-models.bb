@@ -17,15 +17,15 @@ FILES:${PN}-model-en-us = "${datadir}/vosk/models/en-us/"
 do_configure[noexec] = "1"
 do_compile[noexec] = "1"
 
+# Install under root's home cache (since you run as root)
 do_install() {
-    install -d ${D}${datadir}/vosk/models/en-us
+    install -d ${D}/root/.cache/vosk/vosk-model-small-en-us-0.15
 
-    cp -r --no-preserve=ownership ${S}/* ${D}${datadir}/vosk/models/en-us/
+    cp -r --no-preserve=ownership ${S}/* ${D}/root/.cache/vosk/vosk-model-small-en-us-0.15/
 
-    # Normalize permissions (optional but clean)
-    find ${D}${datadir}/vosk/models/en-us -type d -exec chmod 0755 {} \;
-    find ${D}${datadir}/vosk/models/en-us -type f -exec chmod 0644 {} \;
+    find ${D}/root/.cache/vosk/vosk-model-small-en-us-0.15 -type d -exec chmod 0755 {} \;
+    find ${D}/root/.cache/vosk/vosk-model-small-en-us-0.15 -type f -exec chmod 0644 {} \;
 }
 
-# Keep main package empty (optional)
+FILES:${PN}-model-en-us = "/root/.cache/vosk/vosk-model-small-en-us-0.15/"
 FILES:${PN} = ""

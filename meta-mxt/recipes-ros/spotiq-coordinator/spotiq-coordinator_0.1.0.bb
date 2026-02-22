@@ -5,6 +5,9 @@ LIC_FILES_CHKSUM = "file://${COMMON_LICENSE_DIR}/Apache-2.0;md5=89aea4e17d99a7ca
 inherit ros_distro_humble
 inherit ros_ament_python
 
+ROS_PACKAGE_NAME = "spotiq_coordinator"
+ROS_BPN = "spotiq_coordinator"
+
 DEPENDS = " \
     rclpy \
     std-msgs \
@@ -53,15 +56,25 @@ do_configure:prepend() {
     fi
 }
 
-# Standard ament_python install handles most files
-# But setup.py creates wrong paths, so we fix them manually
-do_install:append() {
-    # Remove incorrectly installed share/share directory
-    if [ -d ${D}${ros_datadir}/share ]; then
-        rm -rf ${D}${ros_datadir}/share
-    fi
+# Completely override install to avoid setup.py path issues
+do_install() {
+    # Install Python package
+    install -d ${D}${PYTHON_SITEPACKAGES_DIR}/spotiq_coordinator
+    install -m 0644 ${S}/spotiq_coordinator/__init__.py ${D}${PYTHON_SITEPACKAGES_DIR}/spotiq_coordinator/
+    install -m 0644 ${S}/spotiq_coordinator/coordinator_node.py ${D}${PYTHON_SITEPACKAGES_DIR}/spotiq_coordinator/
     
-    # Install package.xml to correct location
+    # Install executable
+    install -d ${D}${ros_libdir}/${ROS_BPN}
+    cat > ${D}${ros_libdir}/${ROS_BPN}/coordinator <<EOF
+#!/usr/bin/env python3
+import sys
+from spotiq_coordinator.coordinator_node import main
+if __name__ == '__main__':
+    sys.exit(main())
+EOF
+    chmod +x ${D}${ros_libdir}/${ROS_BPN}/coordinator
+    
+    # Install package.xml
     install -d ${D}${ros_datadir}/${ROS_BPN}
     install -m 0644 ${S}/package.xml ${D}${ros_datadir}/${ROS_BPN}/
     
@@ -75,6 +88,7 @@ do_install:append() {
 }
 
 FILES:${PN} += " \
+    ${PYTHON_SITEPACKAGES_DIR}/spotiq_coordinator/* \
     ${ros_libdir}/${ROS_BPN}/* \
     ${ros_datadir}/${ROS_BPN}/* \
     ${ros_datadir}/ament_index/resource_index/packages/${ROS_BPN} \
