@@ -1,0 +1,849 @@
+From 0bd319a66170d089a2666c784c5e808fa6f11e6d Mon Sep 17 00:00:00 2001
+From: Marius Muresan <marius.muresan@mxt.ro>
+Date: Sat, 28 Feb 2026 15:57:09 +0200
+Subject: [PATCH] Update darknet dpr ros to yolo8n and customized classes
+
+---
+ src/define.h             |  58 ++---
+ src/define_color_yolox.h |  42 +---
+ src/main.cpp             | 517 ++++++++++++++++-----------------------
+ src/main.h               |  11 +-
+ 4 files changed, 246 insertions(+), 382 deletions(-)
+
+diff --git a/src/define.h b/src/define.h
+index 1b9b44b..230180e 100644
+--- a/src/define.h
++++ b/src/define.h
+@@ -3,8 +3,8 @@
+ ***********************************************************************************************************************/
+ /***********************************************************************************************************************
+ * File Name    : define.h
+-* Version      : 0.90
+-* Description  : RZ/V2H DRP-AI Sample Application for Megvii-Base Detection YOLOX with MIPI/USB Camera
++* Version      : 0.91
++* Description  : RZ/V2H DRP-AI Sample Application for YOLOv8n with MIPI/USB Camera
+ ***********************************************************************************************************************/
+ 
+ #ifndef DEFINE_MACRO_H
+@@ -60,7 +60,7 @@
+    This mode requires the DRP-AI object file having the squared input size CAM_IMAGE_WIDTH x CAM_IMAGE_WIDTH.
+    0: No padding, 
+    1: With padding (maintains the aspect ratio) */
+-#define DRPAI_INPUT_PADDING (1)
++#define DRPAI_INPUT_PADDING (0)  /* PreRuntime stretches 640x480->640x640, no letterbox padding */
+ 
+ #if(1)  // TVM
+ /* DRP-AI memory offset for model object file*/
+@@ -72,34 +72,22 @@
+ * Following variables need to be changed in order to custormize the AI model
+ *  - drpai_prefix0 = directory name of DRP-AI Object files (DRP-AI Translator output)
+ ******************************************/
+-/* Anchor box information */
+-const static double anchors[] =
+-{
+-    1.08,   1.19,
+-    3.42,   4.41,
+-    6.63,   11.38,
+-    9.42,   5.11,
+-    16.62,  10.52
+-};
+-
+ /*****************************************
+-* Macro for YoloX
++* Macro for YOLOv8n
++* Output tensor flat layout (transposed):
++*   [ cx_0..cx_N | cy_0..cy_N | w_0..w_N | h_0..h_N |
++*     cls0_0..cls0_N | cls1_0..cls1_N | ... | cls6_0..cls6_N ]
++* where N = NUM_ANCH = 80*80 + 40*40 + 20*20 = 8400
+ ******************************************/
+-/* Number of class to be detected */
+-#define NUM_CLASS                   (20)
+-/* Number for [region] layer num parameter */
+-#define NUM_BB                      (1)
+-/* Number of output layers. This value MUST match with the length of num_grids[] below */
+-#define NUM_INF_OUT_LAYER   (3)
+-/* Number of grids in the image. The length of this array MUST match with the NUM_INF_OUT_LAYER */
+-const static uint8_t num_grids[] = { 80,40,20 };
+-/* Number of DRP-AI output */
+-const static uint32_t num_inf_out =  (NUM_CLASS + 5) * NUM_BB * num_grids[0] * num_grids[0]
+-                                + (NUM_CLASS + 5) * NUM_BB * num_grids[1] * num_grids[1]
+-                                + (NUM_CLASS + 5) * NUM_BB * num_grids[2] * num_grids[2];/* Thresholds */
+-
+-#define TH_PROB                     (0.5f)
+-#define TH_NMS                      (0.5f)
++/* Number of classes to be detected */
++#define NUM_CLASS                   (7)
++/* Total anchor cells across all 3 output scales (80x80 + 40x40 + 20x20) */
++#define NUM_ANCH                    (8400)
++/* Total DRP-AI output elements = (4 box coords + NUM_CLASS scores) * NUM_ANCH */
++const static uint32_t num_inf_out = (4 + NUM_CLASS) * NUM_ANCH;
++
++#define TH_PROB                     (0.30f)  /* minimum class score to consider a detection */
++#define TH_NMS                      (0.40f)  /* class-agnostic IoU suppression threshold */
+ /* Size of input image to the model */
+ #define MODEL_IN_W                  (640)
+ #define MODEL_IN_H                  (640)
+@@ -151,8 +139,8 @@ const static uint32_t num_inf_out =  (NUM_CLASS + 5) * NUM_BB * num_grids[0] * n
+ #define CAM_IMAGE_HEIGHT            (1080)
+ #endif
+ 
+-#define CAM_IMAGE_CHANNEL_YUY2      (2)
+-#define CAM_IMAGE_SIZE              (CAM_IMAGE_WIDTH * CAM_IMAGE_HEIGHT * CAM_IMAGE_CHANNEL_YUY2)
++#define CAM_IMAGE_CHANNEL_BGR       (3)  /* BGR: 3 bytes/pixel, fed directly to PreRuntime */
++#define CAM_IMAGE_SIZE              (CAM_IMAGE_WIDTH * CAM_IMAGE_HEIGHT * CAM_IMAGE_CHANNEL_BGR)
+ 
+ /*Camera:: Capture Information */
+ #if INPUT_CAM_TYPE == 1
+@@ -211,10 +199,10 @@ const static uint32_t num_inf_out =  (NUM_CLASS + 5) * NUM_BB * num_grids[0] * n
+ #define IMAGEBUF                    (IMAGE_OUTPUT_WIDTH * IMAGE_OUTPUT_HEIGHT * IMAGE_CHANNEL_BGRA)
+ /* DRP-AI Input image buffer size */
+ #if (1) == DRPAI_INPUT_PADDING
+-#define DRPAIBUF                    (CAM_IMAGE_WIDTH * CAM_IMAGE_WIDTH * CAM_IMAGE_CHANNEL_YUY2)
+-#else   /* (1) == DRPAI_INPUT_PADDING */
+-#define DRPAIBUF                    (CAM_IMAGE_WIDTH * CAM_IMAGE_HEIGHT * CAM_IMAGE_CHANNEL_YUY2)
+-#endif  /* (1) == DRPAI_INPUT_PADDING */
++#define DRPAIBUF                    (CAM_IMAGE_WIDTH * CAM_IMAGE_WIDTH * CAM_IMAGE_CHANNEL_BGR)
++#else
++#define DRPAIBUF                    (CAM_IMAGE_WIDTH * CAM_IMAGE_HEIGHT * CAM_IMAGE_CHANNEL_BGR)
++#endif
+ 
+ /*Image:: Text information to be drawn on image*/
+ #define CHAR_SCALE_LARGE            (0.8)
+diff --git a/src/define_color_yolox.h b/src/define_color_yolox.h
+index 35f30c8..cc631cd 100644
+--- a/src/define_color_yolox.h
++++ b/src/define_color_yolox.h
+@@ -15,26 +15,13 @@
+ /* Pascal VOC dataset label list */
+ const static std::vector<std::string> label_file_map = 
+ { 
+-    "aeroplane",
+-    "bicycle",
+-    "bird",
+-    "boat",
+-    "bottle",
+-    "bus",
+-    "car",
+-    "cat",
+-    "chair",
+-    "cow",
+-    "diningtable",
+-    "dog",
+-    "horse",
+-    "motorbike",
+-    "person",
+-    "pottedplant", 
+-    "sheep",
+-    "sofa",
+-    "train",
+-    "tvmonitor" 
++    "solder_wire",
++    "kapton_tape",
++    "flux",
++    "usb",
++    "tweezer",
++    "plier",
++    "cutter"
+ };
+ 
+ /* box color list */
+@@ -46,20 +33,7 @@ const static unsigned int box_color[] =
+     (0xFFA07Au),
+     (0xFF1493u),
+     (0x006400u),
+-    (0x00BFFFu),
+-    (0xDAA520u),
+-    (0xFF00FFu),
+-    (0xFFC0CBu),
+-    (0x008000u),
+-    (0x800080u),
+-    (0xFFA500u),
+-    (0x1E90FFu),
+-    (0x7CFC00u),
+-    (0xF000F0u),
+-    (0xF000FFu),
+-    (0xFF00FFu),
+-    (0xFF00FFu),
+-    (0xFF0FFFu)
++    (0x00BFFFu)
+ };
+ 
+ 
+diff --git a/src/main.cpp b/src/main.cpp
+index ac1d576..ce52558 100644
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -3,8 +3,8 @@
+ ***********************************************************************************************************************/
+ /***********************************************************************************************************************
+ * File Name    : main.cpp
+-* Version      : 0.90
+-* Description  : RZ/V2H DRP-AI Sample Application for Megvii-Base Detection YOLOX with MIPI/USB Camera
++* Version      : 0.91
++* Description  : RZ/V2H DRP-AI Sample Application for YOLOv8n with MIPI/USB Camera
+ ***********************************************************************************************************************/
+ 
+ /*****************************************
+@@ -77,6 +77,9 @@ static double pre_time = 0;
+ static double post_time = 0;
+ static double ai_time = 0;
+ 
++std::mutex mtx_;
++sensor_msgs::msg::Image::ConstSharedPtr last_msg_;
++
+ /*****************************************
+ * Function Name     : float16_to_float32
+ * Description       : Function by Edgecortex. Cast uint16_t a into float value.
+@@ -161,280 +164,190 @@ int8_t DRPAINode::get_result()
+ 
+ /*****************************************
+ * Function Name : sigmoid
+-* Description   : Helper function for YOLO Post Processing
+-* Arguments     : x = input argument for the calculation
+-* Return value  : sigmoid result of input x
++* Description   : Not used for YOLOv8n (kept for reference only)
+ ******************************************/
+-double DRPAINode::sigmoid(double x)
+-{
+-    return 1.0/(1.0 + exp(-x));
+-}
++/* sigmoid removed - YOLOv8 outputs do not require sigmoid activation */
++
++/* softmax removed - YOLOv8 class scores are used directly */
++
++/* index() and offset() removed - YOLOv8 uses a flat transposed layout
++ * accessed directly in R_Post_Proc() as: ptr[channel * NUM_ANCH + cell] */
+ 
+ /*****************************************
+-* Function Name : softmax
+-* Description   : Helper function for YOLO Post Processing
+-* Arguments     : val[] = array to be computed softmax
++* Function Name : R_Post_Proc
++* Description   : CPU post-processing for YOLOv8n.
++*
++*  The DRP-AI TVM runtime outputs a single flat tensor in transposed layout:
++*
++*    [ cx_0..cx_N | cy_0..cy_N | w_0..w_N | h_0..h_N |
++*      cls0_0..cls0_N | cls1_0..cls1_N | ... | cls6_0..cls6_N ]
++*
++*  where N = NUM_ANCH = 8400 (80x80 + 40x40 + 20x20 cells).
++*  Coordinates are absolute pixels in MODEL_IN_W x MODEL_IN_H space.
++*  No sigmoid / exp / stride decode needed — values are used directly.
++*
++* Arguments     : floatarr = drpai output buffer (num_inf_out elements)
+ * Return value  : -
+ ******************************************/
+-void DRPAINode::softmax(float val[NUM_CLASS])
++void DRPAINode::R_Post_Proc(float* floatarr)
+ {
+-    float max_num = -FLT_MAX;
+-    float sum = 0;
+-    int32_t i;
+-    for ( i = 0 ; i<NUM_CLASS ; i++ )
++    /* ---- 1. Channel pointers into flat output buffer ---- */
++    /* Layout: [cx*N | cy*N | w*N | h*N | cls0*N | ... | cls6*N]  N=NUM_ANCH=8400 */
++    const float* cx_all  = floatarr;
++    const float* cy_all  = cx_all + NUM_ANCH;
++    const float*  w_all  = cy_all + NUM_ANCH;
++    const float*  h_all  =  w_all + NUM_ANCH;
++    const float* cls_all =  h_all + NUM_ANCH;
++
++    /* ---- 2. Coordinate scale factors ---- */
++    /* PreRuntime stretches 640x480 BGR -> 640x640 (no letterbox).
++     * sx=1.0, sy=480/640=0.75 maps model coords back to camera pixels. */
++    const float sx = static_cast<float>(CAM_IMAGE_WIDTH)  / static_cast<float>(MODEL_IN_W);
++    const float sy = static_cast<float>(CAM_IMAGE_HEIGHT) / static_cast<float>(MODEL_IN_H);
++
++    /* ---- 3. Build candidate list ---- */
++    struct RawBox { float x0, y0, x1, y1, score; int cls; };
++    std::vector<RawBox> candidates;
++
++    for (int i = 0; i < NUM_ANCH; ++i)
+     {
+-        max_num = max(max_num, val[i]);
+-    }
++        float max_score = 0.f;
++        int   best_cls  = 0;
++        for (int c = 0; c < NUM_CLASS; ++c)
++        {
++            float s = cls_all[c * NUM_ANCH + i];
++            if (s > max_score) { max_score = s; best_cls = c; }
++        }
++        if (max_score < TH_PROB) continue;
+ 
+-    for ( i = 0 ; i<NUM_CLASS ; i++ )
+-    {
+-        val[i]= (float) exp(val[i] - max_num);
+-        sum+= val[i];
+-    }
++        float cx = cx_all[i] * sx;
++        float cy = cy_all[i] * sy;
++        float bw =  w_all[i] * sx;
++        float bh =  h_all[i] * sy;
+ 
+-    for ( i = 0 ; i<NUM_CLASS ; i++ )
+-    {
+-        val[i]= val[i]/sum;
++        float x0 = cx - 0.5f * bw;
++        float y0 = cy - 0.5f * bh;
++        float x1 = cx + 0.5f * bw;
++        float y1 = cy + 0.5f * bh;
++
++        x0 = std::max(0.f, std::min(x0, static_cast<float>(CAM_IMAGE_WIDTH  - 1)));
++        y0 = std::max(0.f, std::min(y0, static_cast<float>(CAM_IMAGE_HEIGHT - 1)));
++        x1 = std::max(0.f, std::min(x1, static_cast<float>(CAM_IMAGE_WIDTH  - 1)));
++        y1 = std::max(0.f, std::min(y1, static_cast<float>(CAM_IMAGE_HEIGHT - 1)));
++
++        candidates.push_back({x0, y0, x1, y1, max_score, best_cls});
+     }
+-    return;
+-}
+ 
+-/*****************************************
+-* Function Name : index
+-* Description   : Get the index of the bounding box attributes based on the input offset.
+-* Arguments     : n = output layer number.
+-*                 offs = offset to access the bounding box attributesd.
+-*                 channel = channel to access each bounding box attribute.
+-* Return value  : index to access the bounding box attribute.
+-******************************************/
+-int32_t DRPAINode::index(uint8_t n, int32_t offs, int32_t channel)
+-{
+-    uint8_t num_grid = num_grids[n];
+-    return offs + channel * num_grid * num_grid;
+-}
++    /* Sort by score descending */
++    std::sort(candidates.begin(), candidates.end(),
++              [](const RawBox& a, const RawBox& b){ return a.score > b.score; });
+ 
+-/*****************************************
+-* Function Name : offset
+-* Description   : Get the offset nuber to access the bounding box attributes
+-*                 To get the actual value of bounding box attributes, use index() after this function.
+-* Arguments     : n = output layer number [0~2].
+-*                 b = Number to indicate which bounding box in the region [0~2]
+-*                 y = Number to indicate which region [0~13]
+-*                 x = Number to indicate which region [0~13]
+-* Return value  : offset to access the bounding box attributes.
+-******************************************/
+-int32_t DRPAINode::offset(uint8_t n, int32_t b, int32_t y, int32_t x)
+-{
+-    uint8_t num = num_grids[n];
+-    uint32_t prev_layer_num = 0;
+-    int32_t i = 0;
++    /* ---- 4. Class-agnostic NMS ---- */
++    /* Suppress overlapping boxes regardless of class to prevent
++     * the same object being reported twice with different labels. */
++    std::vector<RawBox> kept;
++    std::vector<bool>   suppressed(candidates.size(), false);
+ 
+-    for (i = 0 ; i < n; i++)
++    for (size_t i = 0; i < candidates.size(); ++i)
+     {
+-        prev_layer_num += NUM_BB *(NUM_CLASS + 5)* num_grids[i] * num_grids[i];
+-    }
+-    return prev_layer_num + b *(NUM_CLASS + 5)* num * num + y * num + x;
+-}
++        if (suppressed[i]) continue;
++        kept.push_back(candidates[i]);
+ 
+-/*****************************************
+-* Function Name : R_Post_Proc
+-* Description   : Process CPU post-processing for YoloX
+-* Arguments     : floatarr = drpai output address
+-* Return value  : -
+-******************************************/
+-void DRPAINode::R_Post_Proc(float* floatarr)
+-{
+-    /* Following variables are required for correct_region_boxes in Darknet implementation*/
+-    /* Note: This implementation refers to the "darknet detector test" */
+-    vector<detection> det_buff;
+-    float new_w, new_h;
+-    float correct_w = 1.;
+-    float correct_h = 1.;
+-    if ((float) (MODEL_IN_W / correct_w) < (float) (MODEL_IN_H/correct_h) )
+-    {
+-        new_w = (float) MODEL_IN_W;
+-        new_h = correct_h * MODEL_IN_W / correct_w;
+-    }
+-    else
+-    {
+-        new_w = correct_w * MODEL_IN_H / correct_h;
+-        new_h = MODEL_IN_H;
++        for (size_t j = i + 1; j < candidates.size(); ++j)
++        {
++            if (suppressed[j]) continue;
++            const RawBox& a = candidates[i];
++            const RawBox& b = candidates[j];
++            float xx1   = std::max(a.x0, b.x0);
++            float yy1   = std::max(a.y0, b.y0);
++            float xx2   = std::min(a.x1, b.x1);
++            float yy2   = std::min(a.y1, b.y1);
++            float inter = std::max(0.f, xx2-xx1) * std::max(0.f, yy2-yy1);
++            float iou   = inter / ((a.x1-a.x0)*(a.y1-a.y0) +
++                                   (b.x1-b.x0)*(b.y1-b.y0) - inter + 1e-5f);
++            if (iou > TH_NMS) suppressed[j] = true;
++        }
+     }
+ 
+-    int32_t n = 0;
+-    int32_t b = 0;
+-    int32_t y = 0;
+-    int32_t x = 0;
+-    int32_t offs = 0;
+-    size_t i = 0;
+-    float tx = 0;
+-    float ty = 0;
+-    float tw = 0;
+-    float th = 0;
+-    float tc = 0;
+-    float center_x = 0;
+-    float center_y = 0;
+-    float box_w = 0;
+-    float box_h = 0;
+-    float objectness = 0;
+-    uint8_t num_grid = 0;
+-    float classes[NUM_CLASS];
+-    float max_pred = 0;
+-    int32_t pred_class = -1;
+-    float probability = 0;
+-    detection d;
+-    //YOLOX
+-    int stride = 0;
+-    vector<int> strides = {8, 16, 32};
+-
+-    for (n = 0; n<NUM_INF_OUT_LAYER; n++)
++    /* ---- 5. Draw boxes and publish --------------------------------- */
+     {
+-        num_grid = num_grids[n];
+-
+-        for (b = 0;b<NUM_BB;b++)
++        vector<detection> det_buff;
++        for (const auto& b : kept)
+         {
+-           stride = strides[n];
+-            for (y = 0;y<num_grid;y++)
+-            {
+-                for (x = 0;x<num_grid;x++)
+-                {
+-                    offs = offset(n, b, y, x);
+-                    tc = floatarr[index(n, offs, 4)];
+-
+-                    objectness = tc;
+-
+-                    if (objectness > TH_PROB)
+-                    {
+-                        /* Get the class prediction */
+-                        for (i = 0;i < NUM_CLASS;i++)
+-                        {
+-                            classes[i] = floatarr[index(n, offs, 5+i)];
+-                        }
+-
+-                        max_pred = 0;
+-                        pred_class = -1;
+-                        for (i = 0; i < NUM_CLASS; i++)
+-                        {
+-                            if (classes[i] > max_pred)
+-                            {
+-                                pred_class = i;
+-                                max_pred = classes[i];
+-                            }
+-                        }
+-
+-                        /* Store the result into the list if the probability is more than the threshold */
+-                        probability = max_pred * objectness;
+-                        if (probability > TH_PROB)
+-                        {
+-                            tx = floatarr[offs];
+-                            ty = floatarr[index(n, offs, 1)];
+-                            tw = floatarr[index(n, offs, 2)];
+-                            th = floatarr[index(n, offs, 3)];
+-
+-                            /* Compute the bounding box */
+-                            /*get_yolo_box/get_region_box in paper implementation*/
+-                            center_x = (tx+ float(x))* stride;
+-                            center_y = (ty+ float(y))* stride;
+-                            center_x = center_x  / (float) MODEL_IN_W;
+-                            center_y = center_y  / (float) MODEL_IN_H;
+-                            box_w = exp(tw) * stride;
+-                            box_h = exp(th) * stride;
+-                            box_w = box_w / (float) MODEL_IN_W;
+-                            box_h = box_h / (float) MODEL_IN_H;
+-                            
+-                            /* Adjustment for size */
+-                            /* correct_yolo/region_boxes */
+-                            center_x = (center_x - (MODEL_IN_W - new_w) / 2. / MODEL_IN_W) / ((float) new_w / MODEL_IN_W);
+-                            center_y = (center_y - (MODEL_IN_H - new_h) / 2. / MODEL_IN_H) / ((float) new_h / MODEL_IN_H);
+-                            box_w *= (float) (MODEL_IN_W / new_w);
+-                            box_h *= (float) (MODEL_IN_H / new_h);
+-
+-                            center_x = round(center_x * DRPAI_IN_WIDTH);
+-                            center_y = round(center_y * DRPAI_IN_HEIGHT);
+-                            box_w = round(box_w * DRPAI_IN_WIDTH);
+-                            box_h = round(box_h * DRPAI_IN_HEIGHT);
+-                            
+-                            Box bb = {center_x, center_y, box_w, box_h};
+-                            d = {bb, pred_class, probability};
+-                            det_buff.push_back(d);
+-                        }
+-                    }
+-                }
+-            }
++            float cx = 0.5f * (b.x0 + b.x1);
++            float cy = 0.5f * (b.y0 + b.y1);
++            float bw = b.x1 - b.x0;
++            float bh = b.y1 - b.y0;
++            Box   bb = { round(cx), round(cy), round(bw), round(bh) };
++            detection d = { bb, b.cls, b.score };
++            det_buff.push_back(d);
+         }
+-    }
+-    /* Non-Maximum Supression filter */
+-    filter_boxes_nms(det_buff, det_buff.size(), TH_NMS);
+ 
+-    /* Convert YUYV image to BGRA format.(bounding box algorithm require BGRA format) */
+-    img.convert_format();
++        /* Buffer holds raw BGR - convert to BGRA for draw functions */
++        cv::Mat bgr_mat(CAM_IMAGE_HEIGHT, CAM_IMAGE_WIDTH, CV_8UC3, img.img_buffer[0]);
++        cv::Mat bgra_mat;
++        cv::cvtColor(bgr_mat, bgra_mat, cv::COLOR_BGR2BGRA);
++        std::memcpy(img.img_buffer[0], bgra_mat.data, CAM_IMAGE_WIDTH * CAM_IMAGE_HEIGHT * 4);
+ 
+-    /* Draw bounding box on image. */
+-    draw_bounding_box();
++        /* Push into global det for draw_bounding_box() */
++        mtx.lock();
++        det.clear();
++        det = det_buff;
++        mtx.unlock();
+ 
+-    cv::Mat out_image(CAM_IMAGE_HEIGHT, CAM_IMAGE_WIDTH, CV_8UC4, img.img_buffer[0]);
++        /* Draw bounding boxes */
++        draw_bounding_box();
+ 
+-    /* Publish bounding box */
+-    darknet_ros_msgs::msg::BoundingBoxes bounding_boxes_results;
+-    int8_t seq = 0;
+-    for (int32_t i = 0; i < det_buff.size(); i++)
+-    {
+-        if (det_buff[i].prob != 0)
++        cv::Mat out_image(CAM_IMAGE_HEIGHT, CAM_IMAGE_WIDTH, CV_8UC4, img.img_buffer[0]);
++
++        /* Publish bounding boxes */
++        darknet_ros_msgs::msg::BoundingBoxes bounding_boxes_results;
++        int8_t seq = 0;
++        for (const auto& b : kept)
+         {
+             darknet_ros_msgs::msg::BoundingBox bounding_box;
+-            bounding_box.class_id = label_file_map[det_buff[i].c];
+-            bounding_box.id = det_buff[i].c;
+-            bounding_box.probability = det_buff[i].prob;
+-            bounding_box.xmin = det_buff[i].bbox.x - round(det_buff[i].bbox.w / 2.);
+-            bounding_box.ymin = det_buff[i].bbox.y - round(det_buff[i].bbox.h / 2.);
+-            bounding_box.xmax = det_buff[i].bbox.x + round(det_buff[i].bbox.w / 2.) - 1;
+-            bounding_box.ymax = det_buff[i].bbox.y + round(det_buff[i].bbox.h / 2.) - 1;
+-
++            bounding_box.class_id    = label_file_map[b.cls];
++            bounding_box.id          = b.cls;
++            bounding_box.probability = b.score;
++            bounding_box.xmin = static_cast<int>(b.x0);
++            bounding_box.ymin = static_cast<int>(b.y0);
++            bounding_box.xmax = static_cast<int>(b.x1);
++            bounding_box.ymax = static_cast<int>(b.y1);
+             bounding_box.xmin = bounding_box.xmin < 1 ? 1 : bounding_box.xmin;
+             bounding_box.ymin = bounding_box.ymin < 1 ? 1 : bounding_box.ymin;
+-            bounding_box.xmax = ((img.get_W() - 2) < bounding_box.xmax) ? (img.get_W() - 2) : bounding_box.xmax;
+-            bounding_box.ymax = ((img.get_H() - 2) < bounding_box.ymax) ? (img.get_H() - 2) : bounding_box.ymax;
++            bounding_box.xmax = (CAM_IMAGE_WIDTH-2  < bounding_box.xmax) ? CAM_IMAGE_WIDTH-2  : bounding_box.xmax;
++            bounding_box.ymax = (CAM_IMAGE_HEIGHT-2 < bounding_box.ymax) ? CAM_IMAGE_HEIGHT-2 : bounding_box.ymax;
+             bounding_boxes_results.bounding_boxes.push_back(bounding_box);
+             seq++;
+         }
++        bounding_boxes_results.header.stamp    = this->now();
++        bounding_boxes_results.header.frame_id = "detection";
++        bounding_boxes_results.image_header    = image_header;
++        bounding_boxes_publisher->publish(bounding_boxes_results);
++
++        /* Publish object count */
++        darknet_ros_msgs::msg::ObjectCount msg;
++        msg.header.stamp    = this->now();
++        msg.header.frame_id = "detection";
++        msg.count           = seq;
++        object_publisher->publish(msg);
++
++        /* Publish detection image */
++#if 0 //disable detection image publish
++        cv::Mat bgr;
++        cv::cvtColor(out_image, bgr, cv::COLOR_BGRA2BGR);
++        cv_bridge::CvImage cv_image;
++        cv_image.header.stamp    = this->now();
++        cv_image.header.frame_id = "detection_image";
++        cv_image.encoding        = "bgr8";
++        cv_image.image           = bgr;
++        sensor_msgs::msg::Image ros_img;
++        cv_image.toImageMsg(ros_img);
++        detection_image_publisher->publish(ros_img);
++#endif
+     }
+-    bounding_boxes_results.header.stamp = this->now();
+-    bounding_boxes_results.header.frame_id = "detection";
+-    bounding_boxes_results.image_header = image_header;
+-    bounding_boxes_publisher->publish(bounding_boxes_results);
+-
+-    /* Publish object count */
+-    darknet_ros_msgs::msg::ObjectCount msg;
+-    msg.header.stamp = this->now();
+-    msg.header.frame_id = "detection";
+-    msg.count = seq;
+-    object_publisher->publish(msg);
+-
+-    /* Publish detection image */
+-    cv_bridge::CvImage cv_image;
+-    cv_image.header.stamp = this->now();
+-    cv_image.header.frame_id = "detection_image";
+-    cv_image.encoding = "bgra8";
+-    cv_image.image = out_image;
+-    sensor_msgs::msg::Image ros_img;
+-    cv_image.toImageMsg(ros_img);
+-    detection_image_publisher->publish(ros_img);
+-
+-    mtx.lock();
+-    /* Clear the detected result list */
+-    det.clear();
+-    copy(det_buff.begin(), det_buff.end(), back_inserter(det));
+-    mtx.unlock();
+-    return ;
+ }
+ 
+-/*****************************************
+-* Function Name : draw_bounding_box
+-* Description   : Draw bounding box on image.
+-* Arguments     : -
+-* Return value  : 0 if succeeded
+-*               not 0 otherwise
+-******************************************/
+ void DRPAINode::draw_bounding_box(void)
+ {
+     vector<detection> det_buff;
+@@ -517,6 +430,15 @@ void *DRPAINode::R_Inf_Thread()
+         }
+ 
+         in_param.pre_in_addr    = capture_address;
++        in_param.pre_in_shape_w = CAM_IMAGE_WIDTH;   /* source width  (640) */
++        in_param.pre_in_shape_h = CAM_IMAGE_HEIGHT;  /* source height (480) */
++        in_param.pre_in_format  = FORMAT_BGR;         /* camera_callback writes raw BGR (matches DrpAi.cpp) */
++        in_param.pre_out_format = FORMAT_RGB;         /* model expects normalised RGB */
++        in_param.resize_w       = MODEL_IN_W;         /* 640 */
++        in_param.resize_h       = MODEL_IN_H;         /* 640 - PreRuntime letterboxes 480->640 */
++        in_param.resize_alg     = ALG_BILINEAR;
++        in_param.cof_add[0]     = in_param.cof_add[1] = in_param.cof_add[2] = 0.f;
++        in_param.cof_mul[0]     = in_param.cof_mul[1] = in_param.cof_mul[2] = 1.f / 255.f;
+         /*Gets Pre-process starting time*/
+         ret = timespec_get(&pre_start_time, TIME_UTC);
+         if (0 == ret)
+@@ -601,7 +523,7 @@ void *DRPAINode::R_Inf_Thread()
+         int arraySum = std::accumulate(array_drp_time, array_drp_time + SIZE_OF_ARRAY(array_drp_time), 0);
+         double arrayAvg = 1.0 * arraySum / SIZE_OF_ARRAY(array_drp_time);
+         ai_fps = 1.0 / arrayAvg * 1000.0 + 0.5;
+-        RCLCPP_INFO(this->get_logger(), "AI Frame Rate %d [fps]", (int32_t)ai_fps);
++        //RCLCPP_INFO(this->get_logger(), "AI Frame Rate %d [fps]", (int32_t)ai_fps);
+ #endif /* DISP_AI_FRAME_RATE */
+ 
+         inference_start.store(0);
+@@ -627,8 +549,28 @@ ai_inf_end:
+ void DRPAINode::camera_callback(const sensor_msgs::msg::Image::ConstSharedPtr & msg)
+ {
+     cv_bridge::CvImagePtr cam_image;
+-    cam_image = cv_bridge::toCvCopy(msg, "rgb8");
++	try {
++		cam_image = cv_bridge::toCvCopy(msg, "rgb8");
++	} catch (const cv_bridge::Exception & e) {
++		RCLCPP_ERROR(this->get_logger(), "cv_bridge exception: %s", e.what());
++		return;
++	} catch (const std::exception & e) {
++		RCLCPP_ERROR(this->get_logger(), "std exception in camera_callback: %s", e.what());
++		return;
++	}
++
+     uint8_t * p_img_buffer0;
++	static uint64_t cb_cnt = 0;
++    ++cb_cnt;
++
++	if ((cb_cnt % 200) == 0) {
++		RCLCPP_INFO(this->get_logger(),
++		"camera_callback alive: n=%lu inf=%d stamp=%u.%u",
++		(unsigned long)cb_cnt,
++		(int)inference_start.load(),
++		msg->header.stamp.sec,
++		msg->header.stamp.nanosec);
++	}
+ 
+     /* cast check ok. no data losses pointer to pointer(void* to uint8_t*) */
+     p_img_buffer0 = (uint8_t *)p_drpai_buf->mem;
+@@ -641,55 +583,23 @@ void DRPAINode::camera_callback(const sensor_msgs::msg::Image::ConstSharedPtr &
+             recv_img = cam_image->image.clone();
+             image_header = msg->header;
+ 
+-            /* resize to learned model format */
++            /* Resize to CAM_IMAGE_WIDTH x CAM_IMAGE_HEIGHT if needed.
++             * ROS topic arrives as RGB8; convert to BGR to match FORMAT_BGR
++             * expected by PreRuntime (same as working DrpAi.cpp pattern).
++             * PreRuntime handles resize to MODEL_IN_W x MODEL_IN_H,
++             * letterboxing, RGB conversion, and 1/255 normalisation internally. */
+             if ((recv_img.size().width != CAM_IMAGE_WIDTH) || (recv_img.size().height != CAM_IMAGE_HEIGHT))
+             {
+                 cv::resize(recv_img, recv_img, cv::Size(CAM_IMAGE_WIDTH, CAM_IMAGE_HEIGHT));
+             }
+-            /* The weight of yolo is YUYV, so convert it to YUYV */
+-            uint64_t idx;
+-            for (idx = 0; idx < CAM_IMAGE_WIDTH * CAM_IMAGE_HEIGHT; idx++)
+-            {
+-                float64_t r = recv_img.data[3 * idx + 0];
+-                float64_t g = recv_img.data[3 * idx + 1];
+-                float64_t b = recv_img.data[3 * idx + 2];
+-                float64_t y = 0.257 * r + 0.504 * g + 0.098 * b + 16.0;
+-                float64_t u = -0.148 * r - 0.291 * g + 0.439 * b + 128.0;
+-                float64_t v = 0.439 * r - 0.368 * g - 0.071 * b + 128.0;
+-                float64_t uv;
+-                if ((idx % 2) == 0)
+-                {
+-                    uv = u;
+-                }
+-                else
+-                {
+-                    uv = v;
+-                }
+-                if (y < 0)
+-                {
+-                    y = 0;
+-                }
+-                if (y > 255)
+-                {
+-                    y = 255;
+-                }
+-                if (uv < 0)
+-                {
+-                    uv = 0;
+-                }
+-                if (uv > 255)
+-                {
+-                    uv = 255;
+-                }
+-                /* cast check ok. Because y is trimmed to the range from 0 to 255 before casting. */
+-                img.img_buffer[0][2 * idx + 0] = (uint8_t)y;
+-                /* cast check ok. Because uv is trimmed to the range from 0 to 255 before casting. */
+-                img.img_buffer[0][2 * idx + 1] = (uint8_t)uv;
+-                /* cast check ok. Because y is trimmed to the range from 0 to 255 before casting. */
+-                p_img_buffer0[2 * idx + 0] = (uint8_t)y;
+-                /* cast check ok. Because uv is trimmed to the range from 0 to 255 before casting. */
+-                p_img_buffer0[2 * idx + 1] = (uint8_t)uv;
+-            }
++            /* ROS delivers rgb8 -> convert to BGR for PreRuntime FORMAT_BGR */
++            cv::Mat bgr;
++            cv::cvtColor(recv_img, bgr, cv::COLOR_RGB2BGR);
++
++            /* Copy raw BGR pixels into DMA buffer - PreRuntime does the rest */
++            const size_t bgr_size = CAM_IMAGE_WIDTH * CAM_IMAGE_HEIGHT * 3;
++            std::memcpy(p_img_buffer0,     bgr.data, bgr_size);
++            std::memcpy(img.img_buffer[0], bgr.data, bgr_size);
+             /* launch the interface */
+             int ret = image_buffer_flush_dmabuf(p_image_buf->idx, p_image_buf->size);
+             if (0 != ret)
+@@ -808,16 +718,19 @@ int32_t DRPAINode::main_entry()
+     get_parameter("drp_max_freq", drp_max_freq);
+ 
+     /* create subscribe and publish */
+-    image_subscriber = image_transport::create_subscription(this, 
+-                            std::string("/camera/image_raw"),
+-                            std::bind(&DRPAINode::camera_callback, this, _1),
+-                            "raw");
++	auto qos = rclcpp::QoS(rclcpp::KeepLast(1)).reliable().durability_volatile();
++    image_subscriber = this->create_subscription<sensor_msgs::msg::Image>( 
++                            std::string("/camera/camera/color/image_raw"),
++							qos,
++                            std::bind(&DRPAINode::camera_callback, this, std::placeholders::_1)
++							);
+     object_publisher = this->create_publisher<darknet_ros_msgs::msg::ObjectCount>(
+                             std::string("found_object"), 1);
+     bounding_boxes_publisher = this->create_publisher<darknet_ros_msgs::msg::BoundingBoxes>(
+                                 std::string("bounding_boxes"), 1);
++
+     detection_image_publisher = this->create_publisher<sensor_msgs::msg::Image>(
+-                                std::string("detection_image"), 1);
++                                std::string("detection_image"), rclcpp::SensorDataQoS());
+ 
+     int8_t main_proc = 0;
+     int8_t ret = 0;
+@@ -828,7 +741,7 @@ int32_t DRPAINode::main_entry()
+ 
+     RCLCPP_INFO(this->get_logger(), "************************************************");
+     RCLCPP_INFO(this->get_logger(), "  RZ/V2H DRP-AI Sample Application");
+-    RCLCPP_INFO(this->get_logger(), "  Model : Lightnet YOLOX | %s", drpai_path.c_str());
++    RCLCPP_INFO(this->get_logger(), "  Model : Lightnet YOLOv8n | %s", drpai_path.c_str());
+     RCLCPP_INFO(this->get_logger(), "  Input : USB Camera");
+     RCLCPP_INFO(this->get_logger(), "************************************************");
+     RCLCPP_INFO(this->get_logger(), "[INFO] Modified Sample Application for RZ/V2N");
+@@ -912,21 +825,13 @@ int32_t DRPAINode::main_entry()
+      *  When the format of input image is smaller than learned model data,
+      *  object detection algorithm should ignore the rest area.
+      */
+-    for (uint32_t i = 0; i < CAM_IMAGE_WIDTH * CAM_IMAGE_WIDTH * CAM_IMAGE_CHANNEL_YUY2; i += 4)
+-    {
+-        /* Y =  0.299R + 0.587G + 0.114B */
+-        p_img_buffer0[i]     = 114;
+-        p_img_buffer0[i + 2] = 114;
+-        /* U = -0.169R - 0.331G + 0.500B + 128 */
+-        p_img_buffer0[i + 1] = 128;
+-        /* V =  0.500R - 0.419G - 0.081B + 128 */
+-        p_img_buffer0[i + 3] = 128;
+-    }
++    /* Fill BGR buffer with grey (114,114,114) - letterbox padding colour */
++    memset(p_img_buffer0, 114, CAM_IMAGE_WIDTH * CAM_IMAGE_WIDTH * CAM_IMAGE_CHANNEL_BGR);
+ #endif  /* (1) == DRPAI_INPUT_PADDING */
+     capture_address = p_drpai_buf->phy_addr;
+ 
+     /*Initialize Image object.*/
+-    ret = img.init(CAM_IMAGE_WIDTH, CAM_IMAGE_HEIGHT, CAM_IMAGE_CHANNEL_YUY2,
++    ret = img.init(CAM_IMAGE_WIDTH, CAM_IMAGE_HEIGHT, CAM_IMAGE_CHANNEL_BGR,
+         IMAGE_OUTPUT_WIDTH, IMAGE_OUTPUT_HEIGHT, IMAGE_CHANNEL_BGRA, p_image_buf->mem);
+     if (0 != ret)
+     {
+diff --git a/src/main.h b/src/main.h
+index e0d66e5..38b111a 100644
+--- a/src/main.h
++++ b/src/main.h
+@@ -3,8 +3,8 @@
+ **********************************************************************************************************************/
+ /**********************************************************************************************************************
+ * File Name    : main.h
+-* Version      : 0.90
+-* Description  : RZ/V2H DRP-AI Sample Application for Megvii-Base Detection YOLOX with MIPI/USB Camera
++* Version      : 0.91
++* Description  : RZ/V2H DRP-AI Sample Application for YOLOv8n with MIPI/USB Camera
+ **********************************************************************************************************************/
+ /**********************************************************************************************************************
+  Includes   <System Includes> , "Project Includes"
+@@ -85,7 +85,7 @@ namespace drpai
+ 
+         /* ROS subscriber and publisher */
+         /* subscribe: for camera image */
+-        image_transport::Subscriber image_subscriber;
++        rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr image_subscriber;
+         /* publish: number of found objects */
+         rclcpp::Publisher<darknet_ros_msgs::msg::ObjectCount>::SharedPtr object_publisher;
+         /* publish: information of bounding box rectangle about detected object */
+@@ -103,10 +103,7 @@ namespace drpai
+ 
+         int32_t ceil3(int32_t num, int32_t base);
+         int8_t get_result();
+-        double sigmoid(double x);
+-        void softmax(float val[NUM_CLASS]);
+-        int32_t index(uint8_t n, int32_t offs, int32_t channel);
+-        int32_t offset(uint8_t n, int32_t b, int32_t y, int32_t x);
++        /* sigmoid, softmax, index, offset removed - not needed for YOLOv8n flat layout */
+ 
+         /* working buffer for resizing camera image */
+         cv::Mat recv_img;
+-- 
+2.34.1
+

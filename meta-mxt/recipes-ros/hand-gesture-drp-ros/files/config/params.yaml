@@ -1,0 +1,28 @@
+# Default parameters for hand_gesture_recognition node
+# Override these via launch arguments or a custom YAML
+
+hand_gesture_recognition:
+  ros__parameters:
+    # Camera input: only "USB" is supported
+    input_source: "USB"
+
+    # DRP-AI frequency factor (1-127)
+    #   1-2  : 1 GHz
+    #   3    : 630 MHz
+    #   4    : 420 MHz
+    #   5    : 315 MHz
+    drpai_freq: 2
+
+    # Path to DRP-AI compiled model directory
+    model_dir: "/hand_gesture_drp_ros/hand_yolov3_onnx"
+
+    # Path to gesture label list (one label per line)
+    label_list: "/hand_gesture_drp_ros/labels.txt"
+
+    # Published topic names
+    image_topic:     "/hand_gesture/image_raw"
+    detection_topic: "/hand_gesture/detection"
+    timing_topic:    "/hand_gesture/timing"
+
+    # TF frame id stamped on published images
+    frame_id: "camera"

@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>hand_gesture_drp_ros</name>
+  <version>1.0.0</version>
+  <description>
+    ROS2 node for real-time hand gesture recognition on Renesas RZ/V2N using
+    YOLOv3 and the DRP-AI TVM runtime. Publishes detected gesture labels and
+    annotated camera images.
+  </description>
+
+  <maintainer email="marius.muresan@mxt.ro">Marius Muresan</maintainer>
+  <license>Apache-2.0</license>
+
+  <!-- Build tool -->
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <!-- Build & exec dependencies -->
+  <depend>rclcpp</depend>
+  <depend>std_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>cv_bridge</depend>
+  <depend>opencv</depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

@@ -5,6 +5,7 @@ Usage:
   ros2 launch spotiq_coordinator coordinator.launch.py debug_mode:=true
   ros2 launch spotiq_coordinator coordinator.launch.py movement_speed:=30
   ros2 launch spotiq_coordinator coordinator.launch.py hand_drop:=true
+  ros2 launch spotiq_coordinator coordinator.launch.py gripper_z_offset:=7.0
 """
 
 from launch import LaunchDescription
@@ -21,7 +22,9 @@ def generate_launch_description():
         DeclareLaunchArgument("debug_pick", default_value="false",
                              description="Enable picking in debug mode (requires debug_mode:=true)"),
         DeclareLaunchArgument("hand_drop", default_value="false",
-                             description="Wait at hand position [200,270,200] for 'drop' command (default: false)"),
+                             description="Wait at hand position [300,0,200] for 'drop' command (default: false)"),
+        DeclareLaunchArgument("gripper_z_offset", default_value="7.0",
+                             description="Z offset for gripper extension/tool in mm (default: 7.0)"),
         DeclareLaunchArgument("movement_speed", default_value="50",
                              description="Robot movement speed in mm/s (default: 50)"),
 
@@ -35,6 +38,7 @@ def generate_launch_description():
                 "debug_mode": LaunchConfiguration("debug_mode"),
                 "debug_pick": LaunchConfiguration("debug_pick"),
                 "hand_drop": LaunchConfiguration("hand_drop"),
+                "gripper_z_offset": LaunchConfiguration("gripper_z_offset"),
                 "movement_speed": LaunchConfiguration("movement_speed"),
             }],
         ),

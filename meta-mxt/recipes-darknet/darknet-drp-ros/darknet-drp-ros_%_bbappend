@@ -6,7 +6,7 @@ FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
 
 # Add multi-model support patch
 SRC_URI += " \
-    file://0001-darknet-drp-ros.patch \
+    file://0001-Update-darknet-dpr-ros-to-yolo8n-and-customized-clas.patch \
 "
 
 # Add std_srvs dependency for model switching service

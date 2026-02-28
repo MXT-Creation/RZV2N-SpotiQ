@@ -97,6 +97,16 @@ WORD_STOP      = "stop"
 WORD_CANCEL    = "cancel"
 WORD_DROP      = "drop"
 
+# Hand gesture to command mapping
+GESTURE_MAP = {
+    "one": "cat",
+    "two": "dog",
+    "three": "car",
+    "four": "cow",
+    "thumb_up": "drop",
+    "rock": "stop"
+}
+
 # All pickable object classes — must match YOLO label names exactly (lowercase)
 TARGET_CLASSES = ["cat", "dog", "cow", "car"]
 
@@ -177,6 +187,10 @@ class SpotiQCoordinator(Node):
         self._hand_drop = bool(self.get_parameter("hand_drop").value)
         self.get_logger().info(f"Hand drop mode: {self._hand_drop}")
         
+        self.declare_parameter("gripper_z_offset", 7.0)
+        self._gripper_z_offset = float(self.get_parameter("gripper_z_offset").value)
+        self.get_logger().info(f"Gripper Z offset: {self._gripper_z_offset}mm (extension/tool)")
+        
         self.declare_parameter("movement_speed", 50)
         self._movement_speed = int(self.get_parameter("movement_speed").value)
         self.get_logger().info(f"Movement speed: {self._movement_speed}")
@@ -188,6 +202,7 @@ class SpotiQCoordinator(Node):
         self._pub_state = self.create_publisher(String, "/spotiq/robot_state",   10)
         self._pub_log   = self.create_publisher(String, "/spotiq/status_log",    10)
         self._pub_cmd   = self.create_publisher(String, "/spotiq/voice_command", 10)
+        self._pub_gesture = self.create_publisher(String, "/spotiq/hand_gesture", 10)  # Echo gestures for monitor
         self._pub_mute  = self.create_publisher(Bool,   "/supress",              10)
         self._pub_pose  = self.create_publisher(String, "/spotiq/tcp_pose",      10)
         self._pub_target = self.create_publisher(String, "/spotiq/target_pose",   10)
@@ -206,6 +221,7 @@ class SpotiQCoordinator(Node):
         # Subscriptions
         self.create_subscription(String,   "/result",            self._voice_cb,        10, callback_group=self._sub_cbg)
         self.create_subscription(String,   "/partial",           self._partial_cb,      10, callback_group=self._sub_cbg)
+        self.create_subscription(String,   "/hand_gesture",      self._gesture_cb,      10, callback_group=self._sub_cbg)
         self.create_subscription(RobotMsg, "/ufactory/robot_states", self._robot_states_cb, 10, callback_group=self._sub_cbg)
         if DARKNET_AVAILABLE:
             self.create_subscription(BoundingBoxes, "/bounding_boxes", self._det_cb, 10, callback_group=self._sub_cbg)
@@ -463,6 +479,28 @@ class SpotiQCoordinator(Node):
         pub = String(); pub.data = word
         self._pub_cmd.publish(pub)
         threading.Thread(target=self._dispatch, args=(word,), daemon=True).start()
+    
+    def _gesture_cb(self, msg: String):
+        """
+        Hand gesture callback. Maps gestures to commands:
+        one→cat, two→dog, three→car, four→cow, thumb_up→drop, rock→stop
+        """
+        gesture = msg.data.strip().lower()
+        if not gesture:
+            return
+        
+        # Echo gesture for monitor display
+        pub = String()
+        pub.data = gesture
+        self._pub_gesture.publish(pub)
+        
+        # Map gesture to command
+        command = GESTURE_MAP.get(gesture)
+        if command:
+            self._info(f"Gesture: '{gesture}' → '{command}'")
+            threading.Thread(target=self._dispatch, args=(command,), daemon=True).start()
+        else:
+            self._info(f"Gesture: '{gesture}' (unknown, ignored)")
 
     def _partial_cb(self, msg: String):
         try:
@@ -954,8 +992,9 @@ class SpotiQCoordinator(Node):
         pos_3d = self._get_3d_position(cx, cy)
         if pos_3d:
             pick_x, pick_y, pick_z = pos_3d
+            pick_z += self._gripper_z_offset  # Apply gripper extension offset
             self._info(f"Found '{tgt}'! pixel({cx:.0f},{cy:.0f}) prob={box.probability:.2f}")
-            self._info(f"  3D position: [{pick_x:.1f}, {pick_y:.1f}, {pick_z:.1f}]mm (from depth)")
+            self._info(f"  3D position: [{pick_x:.1f}, {pick_y:.1f}, {pick_z:.1f}]mm (from depth + {self._gripper_z_offset}mm offset)")
         else:
             # D435 intrinsics from camera_info
             fx = 606.05
@@ -977,7 +1016,7 @@ class SpotiQCoordinator(Node):
             CALIB_OFFSET_Y = 34.0  # mm
             pick_x = cam_x_robot - y_cam + CALIB_OFFSET_X  # -cam_y
             pick_y = cam_y_robot - x_cam + CALIB_OFFSET_Y  # -cam_x
-            pick_z = 90.0  # calibrated TCP height
+            pick_z = 90.0 + self._gripper_z_offset  # calibrated TCP height + gripper extension
             
             self._info(f"Found '{tgt}'! pixel({cx:.0f},{cy:.0f}) prob={box.probability:.2f}")
             self._info(f"  2D estimate: [{pick_x:.1f}, {pick_y:.1f}]mm (no depth, using Z={pick_z}mm)")
