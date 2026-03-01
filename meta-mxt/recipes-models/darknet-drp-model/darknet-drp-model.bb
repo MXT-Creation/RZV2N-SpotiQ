@@ -5,8 +5,8 @@
 SUMMARY = "Install darknet DRP ROS assets to /darknet_drp_ros"
 LICENSE = "CLOSED"
 
-SRC_URI = "file://darknet-drp-app.tar.gz"
-S = "${WORKDIR}/darknet-drp-app"
+SRC_URI = "file://darknet-drp-model.tar.gz"
+S = "${WORKDIR}/darknet-drp-model"
 
 do_configure[noexec] = "1"
 do_compile[noexec] = "1"

@@ -23,6 +23,7 @@ DEPENDS += "\
 
 RDEPENDS:${PN} += "\
     drp-ai-tvm \
+    hand-gesture-drp-model \
 "
 
 # ---------------------------------------------------------------------------
@@ -35,7 +36,6 @@ SRC_URI = "\
     file://include/ \
     file://launch/ \
     file://drp-ai_tvm_v251/ \
-    file://model/ \
     file://config/ \
 "
 
@@ -44,24 +44,10 @@ SRC_URI = "\
 # ---------------------------------------------------------------------------
 ROS_SHARE_DIR = "${datadir}/${ROS_PACKAGE_NAME}"
 
-# ---------------------------------------------------------------------------
-# Model subpackage
-# ---------------------------------------------------------------------------
-PACKAGES += "${PN}-model"
-
 FILES:${PN} += "\
     ${ROS_SHARE_DIR}/launch/* \
+    ${ROS_SHARE_DIR}/config/* \
 "
-
-FILES:${PN}-model += "\
-    /hand_gesture_drp_ros/hand_yolov3_onnx/deploy.so \
-    /hand_gesture_drp_ros/hand_yolov3_onnx/deploy.params \
-    /hand_gesture_drp_ros/hand_yolov3_onnx/deploy.json \
-    /hand_gesture_drp_ros/labels.txt \
-"
-
-INSANE_SKIP:${PN}-model += "already-stripped arch"
-INHIBIT_PACKAGE_STRIP_FILES = "/hand_gesture_drp_ros/hand_yolov3_onnx/deploy.so"
 
 # ---------------------------------------------------------------------------
 # Configure
@@ -84,27 +70,5 @@ do_compile:prepend() {
     fi
 }
 
-# ---------------------------------------------------------------------------
-# Install
-# ---------------------------------------------------------------------------
-do_install:append() {
-    # Launch files
-    if [ -d "${S}/launch" ]; then
-        install -d ${D}${ROS_SHARE_DIR}/launch
-        cp -r --no-dereference --preserve=mode,links,timestamps \
-            ${S}/launch/* ${D}${ROS_SHARE_DIR}/launch/ || true
-    fi
-
-    # Model artefacts -> /hand_gesture_drp_ros/ (paths match define.h)
-    if [ -d "${S}/model" ] && [ "$(ls -A ${S}/model 2>/dev/null)" ]; then
-        install -d ${D}/hand_gesture_drp_ros/hand_yolov3_onnx
-        for f in deploy.so deploy.params deploy.json; do
-            [ -f "${S}/model/${f}" ] && \
-                install -m 0755 ${S}/model/${f} \
-                    ${D}/hand_gesture_drp_ros/hand_yolov3_onnx/${f} || true
-        done
-        [ -f "${S}/model/labels.txt" ] && \
-            install -m 0644 ${S}/model/labels.txt \
-                ${D}/hand_gesture_drp_ros/labels.txt || true
-    fi
-}
+# Ensure proper build order
+do_configure[depends] += "hand-gesture-drp-model:do_install"

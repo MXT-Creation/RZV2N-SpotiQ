@@ -6,7 +6,7 @@ FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
 
 # Add multi-model support patch
 SRC_URI += " \
-    file://0001-Update-darknet-dpr-ros-to-yolo8n-and-customized-clas.patch \
+    file://0001-Update-darknet-dpr-ros-to-yolo8n-and-customized-class.patch \
 "
 
 # Add std_srvs dependency for model switching service
@@ -15,8 +15,8 @@ DEPENDS += "std-srvs"
 # Add darknet_ros_msgs dependency (should already be there, but making it explicit)
 DEPENDS += "darknet-ros-msgs"
 
-# Add runtime dependency on darknet-drp-app (provides model binaries)
-RDEPENDS:${PN} += "darknet-drp-app"
+# Add runtime dependency on darknet-drp-model (provides model binaries)
+RDEPENDS:${PN} += "darknet-drp-model"
 
 # Ensure proper build order
-do_configure[depends] += "darknet-drp-app:do_install"
+do_configure[depends] += "darknet-drp-model:do_install"

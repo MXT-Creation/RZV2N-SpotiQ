@@ -10,10 +10,10 @@ Subject: [PATCH] Update darknet dpr ros to yolo8n and customized classes
  src/main.h               |  11 +-
  4 files changed, 246 insertions(+), 382 deletions(-)
 
-diff --git a/src/define.h b/src/define.h
+diff --git a/darknet_drp_ros/src/define.h b/darknet_drp_ros/src/define.h
 index 1b9b44b..230180e 100644
---- a/src/define.h
-+++ b/src/define.h
+--- a/darknet_drp_ros/src/define.h
++++ b/darknet_drp_ros/src/define.h
 @@ -3,8 +3,8 @@
  ***********************************************************************************************************************/
  /***********************************************************************************************************************
@@ -109,10 +109,10 @@ index 1b9b44b..230180e 100644
  
  /*Image:: Text information to be drawn on image*/
  #define CHAR_SCALE_LARGE            (0.8)
-diff --git a/src/define_color_yolox.h b/src/define_color_yolox.h
+diff --git a/darknet_drp_ros/src/define_color_yolox.h b/darknet_drp_ros/src/define_color_yolox.h
 index 35f30c8..cc631cd 100644
---- a/src/define_color_yolox.h
-+++ b/src/define_color_yolox.h
+--- a/darknet_drp_ros/src/define_color_yolox.h
++++ b/darknet_drp_ros/src/define_color_yolox.h
 @@ -15,26 +15,13 @@
  /* Pascal VOC dataset label list */
  const static std::vector<std::string> label_file_map = 
@@ -169,10 +169,10 @@ index 35f30c8..cc631cd 100644
  };
  
  
-diff --git a/src/main.cpp b/src/main.cpp
+diff --git a/darknet_drp_ros/src/main.cpp b/darknet_drp_ros/src/main.cpp
 index ac1d576..ce52558 100644
---- a/src/main.cpp
-+++ b/src/main.cpp
+--- a/darknet_drp_ros/src/main.cpp
++++ b/darknet_drp_ros/src/main.cpp
 @@ -3,8 +3,8 @@
  ***********************************************************************************************************************/
  /***********************************************************************************************************************
@@ -808,10 +808,10 @@ index ac1d576..ce52558 100644
          IMAGE_OUTPUT_WIDTH, IMAGE_OUTPUT_HEIGHT, IMAGE_CHANNEL_BGRA, p_image_buf->mem);
      if (0 != ret)
      {
-diff --git a/src/main.h b/src/main.h
+diff --git a/darknet_drp_ros/src/main.h b/darknet_drp_ros/src/main.h
 index e0d66e5..38b111a 100644
---- a/src/main.h
-+++ b/src/main.h
+--- a/darknet_drp_ros/src/main.h
++++ b/darknet_drp_ros/src/main.h
 @@ -3,8 +3,8 @@
  **********************************************************************************************************************/
  /**********************************************************************************************************************

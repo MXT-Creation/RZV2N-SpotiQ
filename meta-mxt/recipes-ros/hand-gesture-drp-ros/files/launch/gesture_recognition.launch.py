@@ -2,8 +2,9 @@
 Launch file for Hand Gesture Recognition ROS2 node.
 
 Usage:
-    ros2 launch hand_gesture_recognition gesture_recognition.launch.py
-    ros2 launch hand_gesture_recognition gesture_recognition.launch.py drpai_freq:=3
+    ros2 launch hand_gesture_drp_ros gesture_recognition.launch.py
+    ros2 launch hand_gesture_drp_ros gesture_recognition.launch.py drpai_freq:=3
+    ros2 launch hand_gesture_drp_ros gesture_recognition.launch.py camera_device:=/dev/video2
 """
 
 from launch import LaunchDescription
@@ -33,39 +34,34 @@ def generate_launch_description():
         description='Path to the gesture label list file'
     )
 
-    declare_frame_id = DeclareLaunchArgument(
-        'frame_id',
-        default_value='camera',
-        description='TF frame id to stamp published images with'
+    declare_camera_device = DeclareLaunchArgument(
+        'camera_device',
+        default_value='',
+        description='V4L2 device path (e.g. /dev/video2). Leave empty for auto-detect.'
     )
 
     # ── Node ─────────────────────────────────────────────────────────────────
     gesture_node = Node(
-        package='hand_gesture_recognition',
+        package='hand_gesture_drp_ros',
         executable='hand_gesture_recognition_node',
         name='hand_gesture_recognition',
         output='screen',
         emulate_tty=True,
         parameters=[{
-            'input_source':      'USB',
-            'drpai_freq':        LaunchConfiguration('drpai_freq'),
-            'model_dir':         LaunchConfiguration('model_dir'),
-            'label_list':        LaunchConfiguration('label_list'),
-            'image_topic':       '/hand_gesture/image_raw',
-            'detection_topic':   '/hand_gesture/detection',
-            'timing_topic':      '/hand_gesture/timing',
-            'frame_id':          LaunchConfiguration('frame_id'),
+            'drpai_freq':      LaunchConfiguration('drpai_freq'),
+            'model_dir':       LaunchConfiguration('model_dir'),
+            'label_list':      LaunchConfiguration('label_list'),
+            'camera_device':   LaunchConfiguration('camera_device'),
+            'image_topic':     '/hand_gesture/image_raw',
+            'detection_topic': '/hand_gesture/detection',
+            'timing_topic':    '/hand_gesture/timing',
         }],
-        # Remappings if needed by downstream nodes
-        remappings=[
-            # ('/hand_gesture/image_raw', '/camera/image_raw'),
-        ],
     )
 
     return LaunchDescription([
         declare_drpai_freq,
         declare_model_dir,
         declare_label_list,
-        declare_frame_id,
+        declare_camera_device,
         gesture_node,
     ])

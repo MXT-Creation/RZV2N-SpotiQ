@@ -49,6 +49,7 @@
 #include <sstream>
 #include <iomanip>
 #include <chrono>
+#include <limits.h>   /* PATH_MAX for realpath() */
 
 using namespace std;
 using namespace cv;
@@ -110,7 +111,7 @@ public:
         this->declare_parameter<int>("drpai_freq",              DRPAI_FREQ);
         this->declare_parameter<std::string>("model_dir",       model_dir);
         this->declare_parameter<std::string>("label_list",      label_list);
-        this->declare_parameter<std::string>("camera_device",   "/dev/video0");
+        this->declare_parameter<std::string>("camera_device",   "");  /* empty = auto-detect */
         this->declare_parameter<std::string>("image_topic",     "/hand_gesture/image_raw");
         this->declare_parameter<std::string>("detection_topic", "/hand_gesture/detection");
         this->declare_parameter<std::string>("timing_topic",    "/hand_gesture/timing");
@@ -133,7 +134,6 @@ public:
         RCLCPP_INFO(this->get_logger(), "Hand Gesture Recognition node starting...");
         RCLCPP_INFO(this->get_logger(), "  Model dir    : %s", model_dir_param_.c_str());
         RCLCPP_INFO(this->get_logger(), "  Label list   : %s", label_list_param_.c_str());
-        RCLCPP_INFO(this->get_logger(), "  Camera device: %s", camera_device_.c_str());
         RCLCPP_INFO(this->get_logger(), "  DRP-AI freq  : %d", drpai_freq_);
         RCLCPP_INFO(this->get_logger(), "  Image topic  : %s", img_topic.c_str());
         RCLCPP_INFO(this->get_logger(), "  Gesture topic: %s", det_topic.c_str());
@@ -143,7 +143,19 @@ public:
             throw std::runtime_error("[ERROR] Failed to initialise DRP-AI runtime.");
         }
 
-        /* ---- Open USB camera directly via V4L2 (no GStreamer) ---- */
+        /* ---- Auto-detect USB camera if no device was specified ---- */
+        if (camera_device_.empty()) {
+            camera_device_ = detect_usb_camera();
+            if (camera_device_.empty()) {
+                throw std::runtime_error("[ERROR] No USB camera found. "
+                    "Set the 'camera_device' parameter explicitly (e.g. /dev/video0).");
+            }
+            RCLCPP_INFO(this->get_logger(), "Auto-detected USB camera: %s", camera_device_.c_str());
+        } else {
+            RCLCPP_INFO(this->get_logger(), "Using specified camera device: %s", camera_device_.c_str());
+        }
+
+        /* ---- Open camera via V4L2 ---- */
         cap_.open(camera_device_, cv::CAP_V4L2);
         if (!cap_.isOpened()) {
             throw std::runtime_error("[ERROR] Cannot open camera: " + camera_device_);
@@ -166,6 +178,48 @@ public:
     }
 
 private:
+    /* -----------------------------------------------------------------------
+     *  Auto-detect the first USB video device via /sys/class/video4linux
+     *
+     *  Walks /sys/class/video4linux/videoN/name and returns the first
+     *  /dev/videoN whose driver name contains "usb" (case-insensitive).
+     *  Returns an empty string if nothing is found.
+     * --------------------------------------------------------------------- */
+    std::string detect_usb_camera()
+    {
+        /* Walk /sys/class/video4linux/videoN and resolve the symlink to find
+         * whether the device is on a USB bus. This works for any USB camera
+         * (UVC, Logitech, etc.) regardless of its reported name, because the
+         * resolved sysfs path always contains "/usb" for USB-attached devices.
+         *
+         * Example resolved path for a Logitech C270:
+         *   /sys/devices/platform/.../usb1/1-1/1-1:1.0/video4linux/video0
+         */
+        for (int i = 0; i < 16; i++) {
+            std::string dev     = "/dev/video" + std::to_string(i);
+            std::string syslink = "/sys/class/video4linux/video" + std::to_string(i);
+
+            /* Resolve the symlink to get the real sysfs device path */
+            char resolved[PATH_MAX] = {};
+            if (realpath(syslink.c_str(), resolved) == nullptr) continue;
+
+            std::string real_path(resolved);
+
+            /* USB devices always have "/usb" somewhere in their sysfs path */
+            if (real_path.find("/usb") != std::string::npos) {
+                /* Read friendly name for the log message */
+                std::string name = "unknown";
+                std::ifstream f(syslink + "/name");
+                if (f.is_open()) std::getline(f, name);
+
+                RCLCPP_INFO(this->get_logger(),
+                            "Auto-detected USB camera: %s (%s)", dev.c_str(), name.c_str());
+                return dev;
+            }
+        }
+        return "";
+    }
+
     /* -----------------------------------------------------------------------
      *  DRP-AI / runtime initialisation
      * --------------------------------------------------------------------- */
