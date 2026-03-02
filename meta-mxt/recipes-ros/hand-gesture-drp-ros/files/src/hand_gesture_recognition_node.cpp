@@ -44,12 +44,16 @@
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/string.hpp>
 #include <sensor_msgs/msg/image.hpp>
+#include <sensor_msgs/msg/compressed_image.hpp>
 #include <cv_bridge/cv_bridge.h>
 
 #include <sstream>
 #include <iomanip>
 #include <chrono>
 #include <limits.h>   /* PATH_MAX for realpath() */
+#include <mutex>
+#include <thread>
+#include <atomic>
 
 using namespace std;
 using namespace cv;
@@ -115,11 +119,15 @@ public:
         this->declare_parameter<std::string>("image_topic",     "/hand_gesture/image_raw");
         this->declare_parameter<std::string>("detection_topic", "/hand_gesture/detection");
         this->declare_parameter<std::string>("timing_topic",    "/hand_gesture/timing");
+        this->declare_parameter<int>("jpeg_quality",     80);   /* 1-100 */
+        this->declare_parameter<int>("image_publish_every", 1); /* publish every N inference frames */
 
-        drpai_freq_      = this->get_parameter("drpai_freq").as_int();
-        model_dir_param_ = this->get_parameter("model_dir").as_string();
-        label_list_param_= this->get_parameter("label_list").as_string();
-        camera_device_   = this->get_parameter("camera_device").as_string();
+        drpai_freq_          = this->get_parameter("drpai_freq").as_int();
+        model_dir_param_     = this->get_parameter("model_dir").as_string();
+        label_list_param_    = this->get_parameter("label_list").as_string();
+        camera_device_       = this->get_parameter("camera_device").as_string();
+        jpeg_quality_        = this->get_parameter("jpeg_quality").as_int();
+        image_publish_every_ = this->get_parameter("image_publish_every").as_int();
 
         const auto img_topic    = this->get_parameter("image_topic").as_string();
         const auto det_topic    = this->get_parameter("detection_topic").as_string();
@@ -127,8 +135,8 @@ public:
 
         /* ---- Publishers ---- */
         pub_detection_ = this->create_publisher<std_msgs::msg::String>(det_topic, 10);
-        pub_image_     = this->create_publisher<sensor_msgs::msg::Image>(
-                             img_topic, rclcpp::SensorDataQoS());
+        pub_image_     = this->create_publisher<sensor_msgs::msg::CompressedImage>(
+                             img_topic + "/compressed", rclcpp::SensorDataQoS());
         pub_timing_    = this->create_publisher<std_msgs::msg::String>(timing_topic, 10);
 
         RCLCPP_INFO(this->get_logger(), "Hand Gesture Recognition node starting...");
@@ -162,17 +170,32 @@ public:
         }
         cap_.set(cv::CAP_PROP_FRAME_WIDTH,  IMAGE_WIDTH);
         cap_.set(cv::CAP_PROP_FRAME_HEIGHT, IMAGE_HEIGHT);
-        RCLCPP_INFO(this->get_logger(), "Camera opened: %s (%dx%d)",
-                    camera_device_.c_str(), IMAGE_WIDTH, IMAGE_HEIGHT);
+        cap_.set(cv::CAP_PROP_FPS, 30);
+        /* Keep the V4L2 internal buffer small so we always get the freshest frame */
+        cap_.set(cv::CAP_PROP_BUFFERSIZE, 2);
+        double actual_fps = cap_.get(cv::CAP_PROP_FPS);
+        RCLCPP_INFO(this->get_logger(), "Camera opened: %s (%dx%d @ %.0f fps)",
+                    camera_device_.c_str(), IMAGE_WIDTH, IMAGE_HEIGHT, actual_fps);
 
-        /* ---- Main inference timer (~30 fps) ---- */
+        /* ---- Camera capture thread ----------------------------------------
+         * Runs independently of inference. Continuously grabs frames and
+         * stores the latest one in latest_frame_. The inference timer picks
+         * it up without ever blocking on the camera.
+         * ------------------------------------------------------------------ */
+        capture_running_ = true;
+        capture_thread_  = std::thread(&HandGestureRecognitionNode::capture_loop, this);
+
+        /* ---- Main inference timer (100 ms = 10 fps target) ---- */
         timer_ = this->create_wall_timer(
-            std::chrono::milliseconds(33),
+            std::chrono::milliseconds(100),
             std::bind(&HandGestureRecognitionNode::inference_callback, this));
     }
 
     ~HandGestureRecognitionNode()
     {
+        /* Stop capture thread first, then release camera */
+        capture_running_ = false;
+        if (capture_thread_.joinable()) capture_thread_.join();
         cap_.release();
         if (drpai_fd_ >= 0) close(drpai_fd_);
     }
@@ -227,6 +250,7 @@ private:
     {
         /* Disable OpenCV Accelerator for single-thread safety */
         unsigned long OCA_list[16] = {};
+
         OCA_Activate(&OCA_list[0]);
 
         errno = 0;
@@ -452,17 +476,37 @@ private:
     }
 
     /* -----------------------------------------------------------------------
-     *  Timer callback: capture → infer → annotate → publish
+     *  Camera capture loop — runs in its own thread.
+     *  Continuously grabs frames and stores the latest in latest_frame_.
+     *  This prevents the inference timer from ever blocking on cap_ >> frame.
+     * --------------------------------------------------------------------- */
+    void capture_loop()
+    {
+        while (capture_running_) {
+            cv::Mat frame;
+            cap_ >> frame;
+            if (frame.empty()) continue;
+
+            {
+                std::lock_guard<std::mutex> lock(frame_mutex_);
+                latest_frame_ = frame;
+                frame_ready_  = true;
+            }
+        }
+    }
+
+    /* -----------------------------------------------------------------------
+     *  Timer callback: grab latest frame → infer → annotate → publish
      * --------------------------------------------------------------------- */
     void inference_callback()
     {
-        /* --- Capture raw BGR frame from V4L2 camera --- */
+        /* --- Get the latest frame captured by the capture thread --- */
         cv::Mat bgr_frame;
-        cap_ >> bgr_frame;
-        if (bgr_frame.empty()) {
-            RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
-                                 "[WARN] Empty frame received from camera.");
-            return;
+        {
+            std::lock_guard<std::mutex> lock(frame_mutex_);
+            if (latest_frame_.empty()) return;  /* no frame at all yet */
+            bgr_frame    = latest_frame_.clone();
+            frame_ready_ = false;
         }
 
         /* --- Run DRP-AI inference on the BGR frame --- */
@@ -483,17 +527,26 @@ private:
         det_msg.data = gesture;
         pub_detection_->publish(det_msg);
 
-        /* --- Publish detection image (BGRA -> BGR, exact darknet_drp_ros pattern) --- */
-        cv::Mat bgr;
-        cv::cvtColor(out_image, bgr, cv::COLOR_BGRA2BGR);
-        cv_bridge::CvImage cv_image;
-        cv_image.header.stamp    = this->now();
-        cv_image.header.frame_id = "detection_image";
-        cv_image.encoding        = "bgr8";
-        cv_image.image           = bgr;
-        sensor_msgs::msg::Image ros_img;
-        cv_image.toImageMsg(ros_img);
-        pub_image_->publish(ros_img);
+        /* --- Publish detection image as JPEG compressed (every Nth frame) ----------
+         * Raw BGR8 640x480 = ~7.4 Mbit/frame. At 10fps that is ~74 Mbps which
+         * saturates a 100Mbps link and causes DDS to drop packets.
+         * JPEG at quality 80 is ~150-200 KB/frame = ~15 Mbps at 10fps.
+         * ------------------------------------------------------------------ */
+        if (++image_frame_counter_ % image_publish_every_ == 0) {
+            cv::Mat bgr;
+            cv::cvtColor(out_image, bgr, cv::COLOR_BGRA2BGR);
+
+            std::vector<uchar> jpeg_buf;
+            std::vector<int>   jpeg_params = {cv::IMWRITE_JPEG_QUALITY, jpeg_quality_};
+            cv::imencode(".jpg", bgr, jpeg_buf, jpeg_params);
+
+            sensor_msgs::msg::CompressedImage comp_msg;
+            comp_msg.header.stamp    = this->now();
+            comp_msg.header.frame_id = "detection_image";
+            comp_msg.format          = "jpeg";
+            comp_msg.data            = jpeg_buf;
+            pub_image_->publish(comp_msg);
+        }
 
         /* --- Publish timing diagnostics as JSON --- */
         std::ostringstream oss;
@@ -508,10 +561,10 @@ private:
         timing_msg.data = oss.str();
         pub_timing_->publish(timing_msg);
 
-        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
-                             "Gesture: '%s'  total=%.1f ms  (pre=%.1f inf=%.1f post=%.1f)",
-                             gesture.c_str(), total_time_,
-                             pre_proc_time_, inf_time_, post_proc_time_);
+        RCLCPP_DEBUG(this->get_logger(),
+                     "Gesture: '%s'  total=%.1f ms  (pre=%.1f inf=%.1f post=%.1f)",
+                     gesture.c_str(), total_time_,
+                     pre_proc_time_, inf_time_, post_proc_time_);
     }
 
     /* ---- Member variables ---- */
@@ -527,12 +580,24 @@ private:
     std::string label_list_param_;
     std::string camera_device_;
 
-    VideoCapture cap_;   /* V4L2 direct — no GStreamer */
+    VideoCapture       cap_;             /* V4L2 direct — no GStreamer */
+
+    /* Camera capture thread */
+    std::thread        capture_thread_;
+    std::atomic<bool>  capture_running_{false};
+    cv::Mat            latest_frame_;
+    std::mutex         frame_mutex_;
+    bool               frame_ready_{false};
 
     float pre_proc_time_{0}, inf_time_{0}, post_proc_time_{0}, total_time_{0};
 
+    /* Image publish throttle */
+    int      jpeg_quality_{80};
+    int      image_publish_every_{1};
+    uint32_t image_frame_counter_{0};
+
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr    pub_detection_;
-    rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr  pub_image_;
+    rclcpp::Publisher<sensor_msgs::msg::CompressedImage>::SharedPtr  pub_image_;
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr    pub_timing_;
     rclcpp::TimerBase::SharedPtr                           timer_;
 };

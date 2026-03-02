@@ -44,7 +44,7 @@ try:
 except ImportError:
     DARKNET_AVAILABLE = False
 
-from xarm_msgs.srv import MoveCartesian, SetInt16, SetInt16ById, Call
+from xarm_msgs.srv import MoveCartesian, SetInt16, SetInt16ById, Call, MoveHome
 from xarm_msgs.msg import RobotMsg
 
 try:
@@ -56,8 +56,10 @@ except ImportError:
     CV_BRIDGE_AVAILABLE = False
 
 # ── Poses [x mm, y mm, z mm, roll rad, pitch rad, yaw rad] ───────────────────
-POSE_HOME  = [115.0,    0.0, 150.0, 3.14, 0.0, 0.0]  # safe resting position
-POSE_SCAN  = [  0.0, -300.0, 280.0, 3.14, 0.0, 0.0]  # work / scan position
+# Roll changed from 3.14 to -3.14 for new gripper orientation
+POSE_HOME  = [115.0,    0.0, 150.0, -3.14, 0.0, 0.0]  # safe resting position (go_home service)
+POSE_TRANSIT_1 = [200.0,    0.0, 250.0, -3.14, 0.0, 0.0]  # transit waypoint before SCAN
+POSE_SCAN  = [  0.0, -260.0, 250.0, -3.14, 0.0, 0.0]  # work / scan position (updated Y and Z)
 
 # Deposit target (final place position) — fixed, does not depend on detection
 POSE_PLACE_Y   =  270.0   # mm — deposit Y coordinate
@@ -93,22 +95,34 @@ CAM_OFFSET_Y =  15.0   # mm — camera Y offset from TCP center
 TABLE_Z = 0.0   # mm — table surface height in robot frame (assuming Z=0 at table)
 
 WORD_START     = "start"
-WORD_STOP      = "stop"
 WORD_CANCEL    = "cancel"
 WORD_DROP      = "drop"
+WORD_GO_HOME   = "go home"  # Acts as both stop and home
 
-# Hand gesture to command mapping
-GESTURE_MAP = {
-    "one": "cat",
-    "two": "dog",
-    "three": "car",
-    "four": "cow",
-    "thumb_up": "drop",
-    "rock": "stop"
+# Voice command mappings (user says "pick X" for each object)
+VOICE_COMMANDS = {
+    "pick solder wire": "solder_wire",
+    "pick tape": "kapton_tape",           # Vosk doesn't recognize "kapton"
+    "pick flux": "flux",
+    "pick connector": "usb",
+    "pick tweezer": "tweezer",
+    "pick plier": "plier",
+    "pick cutter": "cutter",
 }
 
-# All pickable object classes — must match YOLO label names exactly (lowercase)
-TARGET_CLASSES = ["cat", "dog", "cow", "car"]
+# Target classes from YOLOv8n custom model
+TARGET_CLASSES = ["solder_wire", "kapton_tape", "flux", "usb", "tweezer", "plier", "cutter"]
+
+# Hand gesture to command mapping (outputs full voice commands)
+GESTURE_MAP = {
+    "one": "pick solder wire",
+    "two": "pick connector",
+    "three": "pick tweezer",
+    "four": "pick cutter",
+    "five": "pick plier",
+    "thumbs_up": "drop",
+    # rock gesture removed - go home only via voice/GUI
+}
 
 
 def px_to_mm(px, py, object_z=90.0):
@@ -170,6 +184,11 @@ class SpotiQCoordinator(Node):
         self._active_target = None   # set when object word heard, cleared after pick or cancel
         self._waiting_for_drop = False  # True when at hand drop position waiting for "drop" command
         
+        # Gesture debouncing
+        self._last_gesture = None
+        self._last_gesture_time = 0.0
+        self._gesture_debounce_time = 1.0  # 1 second debounce
+        
         # D435 depth handling
         self._depth_image = None
         self._cv_bridge = CvBridge() if CV_BRIDGE_AVAILABLE else None
@@ -218,10 +237,19 @@ class SpotiQCoordinator(Node):
             self._startup_thread = threading.Thread(target=self._startup, daemon=True)
             self._startup_thread.start()
 
-        # Subscriptions
-        self.create_subscription(String,   "/result",            self._voice_cb,        10, callback_group=self._sub_cbg)
-        self.create_subscription(String,   "/partial",           self._partial_cb,      10, callback_group=self._sub_cbg)
-        self.create_subscription(String,   "/hand_gesture",      self._gesture_cb,      10, callback_group=self._sub_cbg)
+        # Subscriptions with explicit QoS for voice topics
+        from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy
+        voice_qos = QoSProfile(
+            depth=10,
+            durability=DurabilityPolicy.VOLATILE,
+            reliability=ReliabilityPolicy.RELIABLE
+        )
+        
+        self.create_subscription(String, "/result", self._voice_cb, voice_qos, callback_group=self._sub_cbg)
+        self.get_logger().info("Subscribed to /result with VOLATILE QoS for voice commands")
+        self.create_subscription(String, "/partial", self._partial_cb, voice_qos, callback_group=self._sub_cbg)
+        self.get_logger().info("Subscribed to /partial with VOLATILE QoS for partial results")
+        self.create_subscription(String, "/hand_gesture/detection", self._gesture_cb, 10, callback_group=self._sub_cbg)
         self.create_subscription(RobotMsg, "/ufactory/robot_states", self._robot_states_cb, 10, callback_group=self._sub_cbg)
         if DARKNET_AVAILABLE:
             self.create_subscription(BoundingBoxes, "/bounding_boxes", self._det_cb, 10, callback_group=self._sub_cbg)
@@ -243,6 +271,7 @@ class SpotiQCoordinator(Node):
         self._cli_mode       = self.create_client(SetInt16,      "/ufactory/set_mode",             callback_group=self._srv_cbg)
         self._cli_state      = self.create_client(SetInt16,      "/ufactory/set_state",            callback_group=self._srv_cbg)
         self._cli_pos        = self.create_client(MoveCartesian, "/ufactory/set_position",         callback_group=self._srv_cbg)
+        self._cli_go_home    = self.create_client(MoveHome,      "/ufactory/move_gohome",          callback_group=self._srv_cbg)
         self._cli_open       = self.create_client(Call,          "/ufactory/open_lite6_gripper",   callback_group=self._srv_cbg)
         self._cli_close      = self.create_client(Call,          "/ufactory/close_lite6_gripper",  callback_group=self._srv_cbg)
         self._cli_stop_grip  = self.create_client(Call,          "/ufactory/stop_lite6_gripper",   callback_group=self._srv_cbg)
@@ -278,7 +307,13 @@ class SpotiQCoordinator(Node):
         self._info(f"State → {s}")
 
     def _mute_voice(self, on: bool):
-        m = Bool(); m.data = on; self._pub_mute.publish(m)
+        m = Bool()
+        m.data = on
+        # Publish multiple times to ensure subscriber receives it
+        for _ in range(3):
+            self._pub_mute.publish(m)
+            time.sleep(0.05)  # 50ms delay between publishes
+        self._info(f"Voice mute set to: {on} (published to /supress)")
 
     def _broadcast_cb(self):
         # Publish state with waiting_for_drop modifier
@@ -468,39 +503,75 @@ class SpotiQCoordinator(Node):
             self._pub_pose.publish(pose_str)
 
     def _voice_cb(self, msg: String):
+        self._info(f"_voice_cb CALLED with raw message: '{msg.data}'")
         raw = msg.data.strip()
+        self._info(f"_voice_cb after strip: '{raw}'")
         try:
-            word = json.loads(raw).get("text", "").strip().lower()
-        except Exception:
+            parsed = json.loads(raw)
+            word = parsed.get("text", "").strip().lower()
+            self._info(f"_voice_cb parsed JSON, extracted word: '{word}'")
+        except Exception as e:
             word = raw.lower()
+            self._info(f"_voice_cb JSON parse failed ({e}), using raw: '{word}'")
+        
         if not word:
+            self._info("_voice_cb: word is empty, returning")
             return
-        self._info(f"Voice: '{word}'")
+            
+        self._info(f"Voice: '{word}' (will dispatch)")
         pub = String(); pub.data = word
         self._pub_cmd.publish(pub)
+        self._info(f"_voice_cb: spawning dispatch thread for '{word}'")
         threading.Thread(target=self._dispatch, args=(word,), daemon=True).start()
+        self._info(f"_voice_cb: dispatch thread spawned for '{word}'")
     
     def _gesture_cb(self, msg: String):
         """
-        Hand gesture callback. Maps gestures to commands:
-        one→cat, two→dog, three→car, four→cow, thumb_up→drop, rock→stop
+        Hand gesture callback with 1-second debouncing.
+        Maps gestures to commands:
+        one→solder_wire, two→connector, three→tweezer, four→cutter, five→plier, thumbs_up→drop
+        rock gesture is ignored - go home only via voice/GUI
         """
         gesture = msg.data.strip().lower()
         if not gesture:
             return
         
-        # Echo gesture for monitor display
+        # Echo gesture for monitor display (always show, even if debounced)
         pub = String()
         pub.data = gesture
         self._pub_gesture.publish(pub)
         
-        # Map gesture to command
-        command = GESTURE_MAP.get(gesture)
-        if command:
-            self._info(f"Gesture: '{gesture}' → '{command}'")
-            threading.Thread(target=self._dispatch, args=(command,), daemon=True).start()
+        # Debouncing: only trigger command if gesture held for 1 second
+        # EXCEPT for drop command - execute immediately when waiting for drop
+        current_time = time.time()
+        
+        # Special case: drop command during hand_drop wait - NO debouncing
+        if gesture == "thumbs_up" and self._waiting_for_drop:
+            command = GESTURE_MAP.get(gesture)
+            if command:
+                self._info(f"Gesture: '{gesture}' → '{command}' (immediate - waiting for drop)")
+                threading.Thread(target=self._dispatch, args=(command,), daemon=True).start()
+                return
+        
+        # If same gesture as last time
+        if gesture == self._last_gesture:
+            # Check if enough time has passed since first detection
+            if current_time - self._last_gesture_time >= self._gesture_debounce_time:
+                # Gesture held for 1 second - execute command
+                command = GESTURE_MAP.get(gesture)
+                if command:
+                    self._info(f"Gesture: '{gesture}' → '{command}' (debounced)")
+                    threading.Thread(target=self._dispatch, args=(command,), daemon=True).start()
+                else:
+                    self._info(f"Gesture: '{gesture}' (unknown, ignored)")
+                # Reset to prevent repeated triggering
+                self._last_gesture = None
+                self._last_gesture_time = 0.0
         else:
-            self._info(f"Gesture: '{gesture}' (unknown, ignored)")
+            # New gesture detected - start debounce timer
+            self._last_gesture = gesture
+            self._last_gesture_time = current_time
+
 
     def _partial_cb(self, msg: String):
         try:
@@ -731,8 +802,27 @@ class SpotiQCoordinator(Node):
             self._arm_enable()
             self._info("DEBUG: Arm enabled")
             
-            # 3. Move directly to SCAN position (skip HOME)
-            self._info(f"DEBUG: Step 3 - Moving directly to SCAN position {POSE_SCAN}...")
+            # 3. Move to TRANSIT position first (avoid self-collision)
+            self._info(f"DEBUG: Step 3a - Moving to TRANSIT position {POSE_TRANSIT_1}...")
+            req = MoveCartesian.Request()
+            req.pose = [float(v) for v in POSE_TRANSIT_1]
+            req.speed = float(self._movement_speed)
+            req.acc = float(ACC)
+            req.mvtime = 0.0
+            
+            self._info(f"DEBUG: Sending move command: pose={[round(v,1) for v in POSE_TRANSIT_1[:3]]} speed={self._movement_speed} acc={ACC}")
+            res = self._call(self._cli_pos, req, timeout=15.0)
+            
+            if not res or (hasattr(res, 'ret') and res.ret != 0):
+                self._err(f"DEBUG: Failed to reach TRANSIT position")
+                self._set_state(self.ERROR)
+                return
+            
+            self._info("DEBUG: At TRANSIT position, waiting...")
+            time.sleep(3.0)
+            
+            # 4. Move to SCAN position
+            self._info(f"DEBUG: Step 3b - Moving to SCAN position {POSE_SCAN}...")
             req = MoveCartesian.Request()
             req.pose = [float(v) for v in POSE_SCAN]
             req.speed = float(self._movement_speed)
@@ -749,7 +839,7 @@ class SpotiQCoordinator(Node):
                         self._info("DEBUG: Move command accepted, waiting for position...")
                         time.sleep(8.0)  # wait for move to complete
                         self._set_state(self.READY)
-                        self._info("At SCAN position. Say an object name to calculate pick position (will not move).")
+                        self._info("At SCAN position. Say 'pick <object>' to pick.")
                     else:
                         self._err(f"DEBUG: Move failed with ret={res.ret}")
                         self._set_state(self.ERROR)
@@ -783,16 +873,26 @@ class SpotiQCoordinator(Node):
             # 2. Enable motion
             self._arm_enable()
 
-            # 3. Open gripper and go HOME
-            self._info(f"Moving to HOME {POSE_HOME}...")
-            ok = self._move_to(POSE_HOME, wait_sec=12.0)
-
-            if ok:
-                self._set_state(self.WAITING_START)
-                self._info("At HOME. Say 'start' to begin.")
+            # 3. Go HOME using move_gohome service
+            self._info("Moving to HOME using move_gohome service...")
+            from xarm_msgs.srv import MoveHome
+            req = MoveHome.Request()
+            req.speed = 0.35
+            req.acc = 10.0
+            
+            if self._cli_go_home.wait_for_service(timeout_sec=2.0):
+                future = self._cli_go_home.call_async(req)
+                rclpy.spin_until_future_complete(self, future, timeout_sec=15.0)
+                
+                if future.result() is not None and future.result().ret == 0:
+                    self._set_state(self.WAITING_START)
+                    self._info("At HOME. Say 'start' to begin.")
+                else:
+                    self._set_state(self.ERROR)
+                    self._err("Failed to reach HOME position!")
             else:
                 self._set_state(self.ERROR)
-                self._err("Failed to reach HOME position!")
+                self._err("move_gohome service not available!")
 
         except Exception as e:
             self._err(f"Startup failed: {e}\n{traceback.format_exc()}")
@@ -814,12 +914,19 @@ class SpotiQCoordinator(Node):
     # ─────────────────────────────────────────────────────────────────────────
 
     def _dispatch(self, word: str):
-        # STOP — always handled, even mid-motion
-        if word == WORD_STOP:
+        self._info(f"DISPATCH received: '{word}' (busy={self._busy}, state={self._state})")
+        
+        # GO HOME — always handled (voice/GUI only, not gesture)
+        # Voice: "go home" or "home"
+        if word == WORD_GO_HOME or word == "home":
             self._active_target = None
-            self._stop_req = True
+            self._waiting_for_drop = False
+            self._stop_req = True  # Signal to stop current operation
             if not self._busy:
-                threading.Thread(target=self._action_stop, daemon=True).start()
+                # Call directly, not in thread, so busy flag is properly managed
+                self._action_go_home()
+            else:
+                self._info("HOME requested - will stop current operation and return home")
             return
 
         # CANCEL — clear target even while busy searching (search loop checks this)
@@ -831,14 +938,51 @@ class SpotiQCoordinator(Node):
                 self._info("Cancel: no active target.")
             return
         
-        # DROP — handle when waiting at hand drop position
+        # DROP — handle when waiting at hand drop position (works even with voice muted)
         if word == WORD_DROP:
             if self._waiting_for_drop:
-                threading.Thread(target=self._action_drop_from_hand, daemon=True).start()
+                # Just clear the flag - _action_pick will handle the actual drop
+                self._waiting_for_drop = False
+                self._info("Drop command acknowledged")
             else:
                 self._info("Not waiting for drop command")
             return
+        
+        # Check if word is a "pick X" voice command or direct class name from gesture
+        target_obj = None
+        if word in VOICE_COMMANDS:
+            # Full voice command like "pick flux"
+            target_obj = VOICE_COMMANDS[word]
+        # NOTE: Do NOT accept bare class names from voice (e.g. just "flux")
+        # Gestures are handled separately via _gesture_cb which sends mapped commands
+        
+        if target_obj:
+            with self._lock:
+                if self._busy:
+                    self._warn(f"Busy — '{word}' ignored")
+                    return
+                self._busy = True
+            
+            self._mute_voice(True)
+            try:
+                if self._state == self.READY:
+                    # Lock to this target
+                    if self._active_target != target_obj:
+                        self._info(f"Target locked: '{target_obj}'. Attempting pick...")
+                        self._active_target = target_obj
+                    else:
+                        self._info(f"Pick attempt for locked target '{target_obj}'...")
+                    self._action_pick()
+                else:
+                    self._info(f"'{word}' ignored in state {self._state}")
+            finally:
+                self._mute_voice(False)
+                with self._lock:
+                    self._busy = False
+            return
 
+        # Handle other commands (START, and any unhandled pick commands)
+        self._info(f"Checking if busy for '{word}': busy={self._busy}, state={self._state}")
         with self._lock:
             if self._busy:
                 self._warn(f"Busy — '{word}' ignored")
@@ -847,30 +991,12 @@ class SpotiQCoordinator(Node):
 
         self._mute_voice(True)
         try:
-            if word == "home":
-                # Go to HOME position from any state (except during active picking)
-                if self._state not in [self.PICKING, self.PLACING]:
-                    self._action_go_home()
+            if word == WORD_START:
+                if self._state == self.WAITING_START:
+                    self._info(f"Executing _action_start()...")
+                    self._action_start()
                 else:
-                    self._info("Cannot go HOME while picking/placing")
-            
-            elif word == WORD_START and self._state == self.WAITING_START:
-                self._action_start()
-
-            elif word in TARGET_CLASSES and self._state == self.READY:
-                # Lock to this target (even if already set — allows switching)
-                if self._active_target != word:
-                    self._info(f"Target locked: '{word}'. Attempting pick...")
-                    self._active_target = word
-                else:
-                    self._info(f"Pick attempt for locked target '{word}'...")
-                self._action_pick()
-
-            elif self._active_target and self._state == self.READY:
-                # Ignore the word — target already locked, only the locked word picks
-                self._info(f"Target locked to '{self._active_target}' — "
-                           f"say '{self._active_target}' to pick or 'cancel' to clear.")
-
+                    self._info(f"'start' command received but state is {self._state}, not WAITING_START")
             else:
                 self._info(f"'{word}' ignored in state {self._state}")
         finally:
@@ -881,54 +1007,118 @@ class SpotiQCoordinator(Node):
     # ── Actions ───────────────────────────────────────────────────────────────
 
     def _action_go_home(self):
-        """Move to HOME position"""
-        self._info("Going to HOME position...")
-        self._set_state(self.INIT)
-        ok = self._move_to(POSE_HOME, wait_sec=10.0)
-        if self._stop_req:
-            self._action_stop()
-            return
-        if ok:
-            self._set_state(self.WAITING_START)
-            self._info("At HOME. Say 'start' to begin.")
-        else:
-            self._set_state(self.ERROR)
-
-    def _action_start(self):
-        self._info("START — enabling arm, moving to scan pose...")
-        self._arm_enable()
-        ok = self._move_to(POSE_SCAN, wait_sec=10.0)
-        if self._stop_req:
-            self._action_stop(); return
-        if ok:
-            self._set_state(self.READY)
-            self._info(f"READY. Say one of {TARGET_CLASSES} to pick. Say 'cancel' to clear target.")
-        else:
-            self._set_state(self.ERROR)
-            self._err("Failed to reach scan pose")
-
-    def _action_stop(self):
-        self._info("STOP — returning to HOME...")
+        """Move to HOME position using move_gohome service - acts as stop+home"""
+        self._info("HOME — stopping current operation and returning to home...")
+        
+        # Clear any active operations
         self._active_target = None
-        self._stop_req = False
+        self._waiting_for_drop = False
+        self._stop_req = False  # Clear the flag we just processed
+        
+        # Take control
         with self._lock:
             self._busy = True
         self._mute_voice(True)
+        
         try:
+            self._set_state(self.INIT)
             self._arm_enable()
-            ok = self._move_to(POSE_HOME, wait_sec=12.0)
-            if ok:
-                self._set_state(self.WAITING_START)
-                self._info("At HOME. Say 'start' to begin.")
-            else:
+            
+            # Use move_gohome service
+            from xarm_msgs.srv import MoveHome
+            req = MoveHome.Request()
+            req.speed = 0.35  # rad/s
+            req.acc = 10.0    # rad/s²
+            
+            if not self._cli_go_home.wait_for_service(timeout_sec=2.0):
+                self._err("move_gohome service not available")
                 self._set_state(self.ERROR)
-                self._err("Failed to reach HOME")
+                return
+            
+            future = self._cli_go_home.call_async(req)
+            
+            # Wait for service response (don't use spin_until_future_complete from daemon thread!)
+            timeout = 15.0
+            start_time = time.time()
+            while not future.done() and (time.time() - start_time) < timeout:
+                time.sleep(0.1)
+            
+            if not future.done():
+                self._err("move_gohome service timeout")
+                self._set_state(self.ERROR)
+                return
+            
+            result = future.result()
+            if result is None or result.ret != 0:
+                self._err(f"move_gohome service failed: ret={result.ret if result else 'None'}")
+                self._set_state(self.ERROR)
+                return
+            
+            self._info("move_gohome service accepted, waiting for robot to reach home position...")
+            
+            # Wait for robot to actually reach home position
+            # Home position is approximately [115, 0, 150] based on POSE_HOME
+            home_target = [115.0, 0.0, 150.0]
+            deadline = time.time() + 10.0  # 10 second timeout
+            
+            while time.time() < deadline:
+                if self._stop_req:
+                    self._info("Stop requested during go_home")
+                    self._set_state(self.ERROR)
+                    return
+                
+                # Check distance to home position
+                dx = abs(self._robot_pose[0] - home_target[0])
+                dy = abs(self._robot_pose[1] - home_target[1])
+                dz = abs(self._robot_pose[2] - home_target[2])
+                dist = (dx**2 + dy**2 + dz**2)**0.5
+                
+                if dist < 5.0:  # within 5mm of home
+                    self._info(f"Robot reached home position (distance: {dist:.1f}mm)")
+                    time.sleep(0.3)  # settle time
+                    break
+                
+                time.sleep(0.2)  # poll at 5Hz
+            else:
+                self._warn(f"Go home timeout - distance to home: {dist:.1f}mm")
+            
+            self._set_state(self.WAITING_START)
+            self._info("At HOME. State set to WAITING_START. Say 'start' to begin.")
         except Exception as e:
-            self._err(f"Stop exception: {e}")
+            self._err(f"Go home failed: {e}")
+            self._set_state(self.ERROR)
         finally:
             self._mute_voice(False)
             with self._lock:
                 self._busy = False
+            self._info(f"Go home complete. Final state: {self._state}, busy: {self._busy}, voice muted: False")
+
+    def _action_start(self):
+        self._info("START — enabling arm, moving to scan pose...")
+        self._arm_enable()
+        
+        # Two-step movement: HOME -> TRANSIT_1 -> SCAN
+        self._info("Moving to transit position...")
+        ok = self._move_to(POSE_TRANSIT_1, wait_sec=10.0)
+        if self._stop_req:
+            self._action_go_home()
+            return
+        if not ok:
+            self._set_state(self.ERROR)
+            self._err("Failed to reach transit position")
+            return
+        
+        self._info("Moving to scan position...")
+        ok = self._move_to(POSE_SCAN, wait_sec=10.0)
+        if self._stop_req:
+            self._action_go_home()
+            return
+        if ok:
+            self._set_state(self.READY)
+            self._info(f"READY. Say 'pick <object>' to pick. Objects: {', '.join(TARGET_CLASSES)}")
+        else:
+            self._set_state(self.ERROR)
+            self._err("Failed to reach scan pose")
 
     def _box_class(self, box) -> str:
         """darknet_drp_ros BoundingBox uses 'class_id' (not 'Class' or 'class_')."""
@@ -1022,8 +1212,8 @@ class SpotiQCoordinator(Node):
             self._info(f"  2D estimate: [{pick_x:.1f}, {pick_y:.1f}]mm (no depth, using Z={pick_z}mm)")
 
         # Hover directly above object (single move to XY at hover height)
-        hover_pick = [pick_x, pick_y, pick_z + 60.0, 3.14, 0.0, 0.0]  # hover 60mm above object
-        grip_pose  = [pick_x, pick_y, pick_z,        3.14, 0.0, 0.0]  # grip at detected Z
+        hover_pick = [pick_x, pick_y, pick_z + 60.0, -3.14, 0.0, 0.0]  # hover 60mm above object
+        grip_pose  = [pick_x, pick_y, pick_z,        -3.14, 0.0, 0.0]  # grip at detected Z
 
         # Publish target pose for dashboard
         import json
@@ -1078,10 +1268,13 @@ class SpotiQCoordinator(Node):
         # ── Place path — check hand_drop mode ─────────────────────────────────
         if self._hand_drop:
             # Hand drop mode: go to hand position [300, 0, 200] and wait for "drop" command
-            hand_position = [300.0, 0.0, 200.0, 3.14, 0.0, 0.0]
+            hand_position = [300.0, 0.0, 200.0, -3.14, 0.0, 0.0]
             
             if not step("Move to hand position", self._move_to, hand_position, self._movement_speed, ACC, 10.0): 
                 return self._abort()
+            
+            # IMPORTANT: Unmute voice so user can say "drop"
+            self._mute_voice(False)
             
             # Set flag and wait for "drop" voice command
             self._waiting_for_drop = True
@@ -1091,23 +1284,51 @@ class SpotiQCoordinator(Node):
             while self._waiting_for_drop:
                 if self._stop_req:
                     self._waiting_for_drop = False
+                    self._mute_voice(True)  # Re-mute before aborting
                     return self._abort()
                 time.sleep(0.5)
             
-            # Drop was triggered by voice command - _action_drop_from_hand handles return
+            # Drop command received - do the drop HERE (not in separate thread)
+            self._info("Drop command received - releasing object")
+            
+            # Return path
+            ret_swing = [POSE_TRANSIT_X, -300.0, POSE_TRANSIT_Z, -3.14, 0.0, 0.0]
+            
+            # Open gripper
+            self._open_gripper()
+            self._info("Gripper opened")
+            time.sleep(1.0)
+            
+            # Stop gripper
+            self._stop_gripper()
+            self._info("Gripper stopped")
+            
+            # Re-mute voice before movement
+            self._mute_voice(True)
+            
+            # Return to SCAN position
+            if not step("Return to transit", self._move_to, ret_swing, self._movement_speed, ACC, 10.0):
+                return self._abort()
+            if not step("Return to SCAN", self._move_to, POSE_SCAN, self._movement_speed, ACC, 10.0):
+                return self._abort()
+            
+            # Success — clear target and ready
+            self._active_target = None
+            self._set_state(self.READY)
+            self._info("Object dropped. Ready for next pick.")
             return
             
         else:
             # Normal automatic place mode (original behavior)
             # Keep pick X/Y, raise Z to TRANSIT and push X forward to TRANSIT_X
             # Then swing Y to deposit side, then descend to same height as pick
-            place_front  = [POSE_TRANSIT_X,  pick_y,       POSE_TRANSIT_Z, 3.14, 0.0, 0.0]  # in front, lifted, same Y
-            place_right  = [POSE_TRANSIT_X,  POSE_PLACE_Y, POSE_TRANSIT_Z, 3.14, 0.0, 0.0]  # swing to deposit Y
-            place_down   = [          0.0,   POSE_PLACE_Y, pick_z,         3.14, 0.0, 0.0]  # descend to SAME height as pick
+            place_front  = [POSE_TRANSIT_X,  pick_y,       POSE_TRANSIT_Z, -3.14, 0.0, 0.0]  # in front, lifted, same Y
+            place_right  = [POSE_TRANSIT_X,  POSE_PLACE_Y, POSE_TRANSIT_Z, -3.14, 0.0, 0.0]  # swing to deposit Y
+            place_down   = [          0.0,   POSE_PLACE_Y, pick_z,         -3.14, 0.0, 0.0]  # descend to SAME height as pick
 
             # ── Return path — always through center position Y=-300 ──────────────
-            ret_lift     = [POSE_TRANSIT_X,  POSE_PLACE_Y, POSE_TRANSIT_Z, 3.14, 0.0, 0.0]  # lift back up
-            ret_swing    = [POSE_TRANSIT_X,  -300.0,       POSE_TRANSIT_Z, 3.14, 0.0, 0.0]  # swing back to CENTER Y=-300
+            ret_lift     = [POSE_TRANSIT_X,  POSE_PLACE_Y, POSE_TRANSIT_Z, -3.14, 0.0, 0.0]  # lift back up
+            ret_swing    = [POSE_TRANSIT_X,  -300.0,       POSE_TRANSIT_Z, -3.14, 0.0, 0.0]  # swing back to CENTER Y=-300
             # Final step: POSE_SCAN [0, -300, 280]
 
             if not step("Place: go front",    self._move_to, place_front, self._movement_speed, ACC, 10.0): return self._abort()
@@ -1129,43 +1350,12 @@ class SpotiQCoordinator(Node):
                 self._set_state(self.READY)
             self._info(f"Done. '{tgt}' placed. Target cleared. Say an object name to pick again.")
 
-    def _action_drop_from_hand(self):
-        """
-        Called when "drop" voice command is heard while waiting at hand position.
-        Opens gripper, waits 1 second, stops gripper, returns to SCAN position.
-        """
-        self._info("Drop command received - releasing object")
-        self._waiting_for_drop = False  # Clear waiting flag
-        
-        # Return path
-        ret_swing = [POSE_TRANSIT_X, -300.0, POSE_TRANSIT_Z, 3.14, 0.0, 0.0]  # swing back to CENTER Y=-300
-        
-        # Open gripper
-        self._open_gripper()
-        self._info("Gripper opened")
-        
-        # Wait 1 second
-        time.sleep(1.0)
-        
-        # Stop gripper
-        self._stop_gripper()
-        self._info("Gripper stopped")
-        
-        # Return to SCAN position
-        self._move_to(ret_swing, self._movement_speed, 500, 10.0)
-        self._move_to(POSE_SCAN, self._movement_speed, 500, 10.0)
-        
-        # Success — clear target and ensure state is READY
-        self._active_target = None
-        if self._state != self.READY:
-            self._set_state(self.READY)
-        self._info("Object dropped. Target cleared. Ready for next pick.")
 
     def _abort(self):
         self._info("Sequence aborted — returning to HOME")
         self._active_target = None
         self._waiting_for_drop = False  # Clear waiting flag if aborting
-        self._action_stop()
+        self._action_go_home()
 
 
 # ── Entry point ────────────────────────────────────────────────────────────────

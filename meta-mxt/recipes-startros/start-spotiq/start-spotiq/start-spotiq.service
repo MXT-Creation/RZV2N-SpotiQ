@@ -1,0 +1,12 @@
+[Unit]
+Description=RZ/VN CoBot Application - spotiq nodes
+After=multi-user.target local-fs.target weston@root.service
+
+[Service]
+ExecStart=/home/start_spotiq.sh
+Type=simple
+User=root
+Restart=no
+
+[Install]
+WantedBy=multi-user.target weston@root.service
