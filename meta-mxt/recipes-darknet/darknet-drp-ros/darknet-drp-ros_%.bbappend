@@ -4,8 +4,8 @@
 
 FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
 
-# Add multi-model support patch
-SRC_URI += " \
+# Add yolov8n model
+SRC_URI:append = " \
     file://0001-Update-darknet-dpr-ros-to-yolo8n-and-customized-class.patch \
 "
 
