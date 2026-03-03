@@ -87,14 +87,14 @@ ros2 run darknet_drp_ros darknet_drp_ros --ros-args \
 sleep 4
 
 # ---- Launch Spotiq Coordinator ----
+led_done
 echo "[INFO] Launching Spotiq Coordinator..."
 ros2 launch spotiq_coordinator coordinator.launch.py \
   debug_mode:=true \
   movement_speed:=80 \
   debug_pick:=true \
-  hand_drop:=true &
+  hand_drop:=true
 sleep 4
 
 # ---- All nodes started - switch to done LED ----
-led_done
 echo "[INFO] All nodes started."

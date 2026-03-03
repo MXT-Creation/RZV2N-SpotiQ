@@ -1,0 +1,92 @@
+From bf736a0a0cf16ddc9eefb2d2b60b2d6dfaf0bf21 Mon Sep 17 00:00:00 2001
+From: Marius Muresan <marius.muresan@mxt.ro>
+Date: Tue, 3 Mar 2026 12:31:14 +0200
+Subject: [PATCH] Update librealsense with patches from meta-intel-realsense
+ for scarthgap
+
+---
+ CMake/external_pybind11.cmake                 |  7 ++-
+ CMake/libusb_config.cmake                     |  1 -
+ config/99-realsense-libusb.rules              |  2 +-
+ patches/0001-remove-get-nlohmann-json.patch   |  1 +
+ patches/series                                |  1 +
+ third-party/CMakeLists.txt                    |  2 +-
+ tools/realsense-viewer/CMakeLists.txt         |  5 --
+ 13 files changed, 63 insertions(+), 10 deletions(-)
+ create mode 100644 .pc/.quilt_patches
+ create mode 100644 .pc/.quilt_series
+ create mode 100644 .pc/.version
+ create mode 100644 .pc/0001-remove-get-nlohmann-json.patch/.timestamp
+ create mode 100644 .pc/0001-remove-get-nlohmann-json.patch/CMake/external_json.cmake
+ create mode 100644 .pc/applied-patches
+ create mode 120000 patches/0001-remove-get-nlohmann-json.patch
+ create mode 100644 patches/series
+diff --git a/CMake/external_pybind11.cmake b/CMake/external_pybind11.cmake
+index a2ab2f86..0726b82c 100644
+--- a/CMake/external_pybind11.cmake
++++ b/CMake/external_pybind11.cmake
+@@ -118,8 +118,11 @@ function(get_pybind11_json)
+ endfunction()
+ 
+ # Trigger the build
+-get_pybind11()
+-get_pybind11_json()
++find_package(Python REQUIRED COMPONENTS Interpreter Development)
++find_package(pybind11 CONFIG REQUIRED)
++option( PYTHON_INSTALL_DIR "Installation directory for Python libraries"
++    "${Python_SITEARCH}/pyrealsense2"
++)
+ 
+ # This function overrides "pybind11_add_module" function,  arguments is same as "pybind11_add_module" arguments
+ # pybind11_add_module(<name> SHARED [file, file2, ...] )
+diff --git a/CMake/libusb_config.cmake b/CMake/libusb_config.cmake
+index ca221ca6..f38e38f7 100644
+--- a/CMake/libusb_config.cmake
++++ b/CMake/libusb_config.cmake
+@@ -10,5 +10,4 @@ if (NOT TARGET usb)
+     else()
+         include(CMake/external_libusb.cmake)
+     endif()
+-    install(TARGETS usb EXPORT realsense2Targets)
+ endif()
+diff --git a/config/99-realsense-libusb.rules b/config/99-realsense-libusb.rules
+index f220c771..69361544 100644
+--- a/config/99-realsense-libusb.rules
++++ b/config/99-realsense-libusb.rules
+@@ -1,6 +1,6 @@
+ ##Version=1.1##
+ # Device rules for Intel RealSense devices (R200, F200, SR300 LR200, ZR300, D400, L500, T200)
+-SUBSYSTEMS=="usb", ATTRS{idVendor}=="8086", ATTRS{idProduct}=="0a80", MODE:="0666", GROUP:="plugdev", RUN+="/usr/local/bin/usb-R200-in_udev"
++SUBSYSTEMS=="usb", ATTRS{idVendor}=="8086", ATTRS{idProduct}=="0a80", MODE:="0666", GROUP:="plugdev"
+ SUBSYSTEMS=="usb", ATTRS{idVendor}=="8086", ATTRS{idProduct}=="0a66", MODE:="0666", GROUP:="plugdev"
+ SUBSYSTEMS=="usb", ATTRS{idVendor}=="8086", ATTRS{idProduct}=="0aa3", MODE:="0666", GROUP:="plugdev"
+ SUBSYSTEMS=="usb", ATTRS{idVendor}=="8086", ATTRS{idProduct}=="0aa2", MODE:="0666", GROUP:="plugdev"
+diff --git a/third-party/CMakeLists.txt b/third-party/CMakeLists.txt
+index c7031406..a5d579d9 100644
+--- a/third-party/CMakeLists.txt
++++ b/third-party/CMakeLists.txt
+@@ -1,6 +1,6 @@
+ string(REPLACE ${PROJECT_SOURCE_DIR}/ "" _rel_path ${CMAKE_CURRENT_LIST_DIR})
+ 
+-include(CMake/external_json.cmake)
++find_package(nlohmann_json REQUIRED)
+ 
+ add_subdirectory( "${CMAKE_CURRENT_LIST_DIR}/rsutils" )
+ 
+diff --git a/tools/realsense-viewer/CMakeLists.txt b/tools/realsense-viewer/CMakeLists.txt
+index 4e6c1768..af428fa2 100644
+--- a/tools/realsense-viewer/CMakeLists.txt
++++ b/tools/realsense-viewer/CMakeLists.txt
+@@ -252,9 +252,4 @@ install(
+     TARGETS ${PROJECT_NAME}
+     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+ )
+-#https://cmake.org/cmake/help/latest/command/install.html
+-install(DIRECTORY presets/
+-    DESTINATION $ENV{HOME}/Documents/librealsense2/presets
+-    FILES_MATCHING PATTERN "*.preset"
+-)
+ endif()
+-- 
+2.34.1
+

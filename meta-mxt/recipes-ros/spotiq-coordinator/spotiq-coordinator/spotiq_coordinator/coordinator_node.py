@@ -121,6 +121,7 @@ GESTURE_MAP = {
     "four": "pick cutter",
     "five": "pick plier",
     "thumbs_up": "drop",
+    "thumbs_down": "cancel",        # Cancel current pick target
     # rock gesture removed - go home only via voice/GUI
 }
 
@@ -1136,6 +1137,9 @@ class SpotiQCoordinator(Node):
           - object is found and picked successfully  → target cleared, READY
           - 'cancel' or 'stop' is requested          → target cleared, READY / HOME
         Reports a status line every 2 s while searching.
+        
+        Voice is UNMUTED during search so user can say 'cancel'.
+        Voice is RE-MUTED during actual movement.
         """
         tgt = self._active_target
         if not tgt:
@@ -1143,6 +1147,10 @@ class SpotiQCoordinator(Node):
             return
 
         self._info(f"Searching for '{tgt}'... Say 'cancel' to stop.")
+        
+        # UNMUTE voice during search so user can cancel
+        self._mute_voice(False)
+        
         _search_iter = 0
 
         # ── Search loop ───────────────────────────────────────────────────────
@@ -1174,6 +1182,9 @@ class SpotiQCoordinator(Node):
             time.sleep(2.0)
 
         # ── Object found — execute pick sequence ──────────────────────────────
+        # RE-MUTE voice now that we're executing the pick (user can still cancel via stop_req)
+        self._mute_voice(True)
+        
         box = max(candidates, key=lambda b: b.probability)
         cx = (box.xmin + box.xmax) / 2.0
         cy = (box.ymin + box.ymax) / 2.0

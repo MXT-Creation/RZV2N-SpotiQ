@@ -1,6 +1,6 @@
 [Unit]
 Description=RZ/VN CoBot Application - hand Gesture Node
-After=multi-user.target local-fs.target weston@root.service
+After=multi-user.target local-fs.target
 
 [Service]
 ExecStart=/home/start_gesture_node.sh
@@ -9,4 +9,4 @@ User=root
 Restart=no
 
 [Install]
-WantedBy=multi-user.target weston@root.service
+WantedBy=multi-user.target

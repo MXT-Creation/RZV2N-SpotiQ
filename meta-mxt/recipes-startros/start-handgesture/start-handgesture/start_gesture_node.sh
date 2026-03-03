@@ -66,10 +66,10 @@ ros2 daemon stop
 sleep 2
 
 # ---- Launch Hand Gesture Recognition ----
+led_done
 echo "[INFO] Launching hand gesture recognition node..."
-ros2 launch hand_gesture_drp_ros gesture_recognition.launch.py &
+ros2 launch hand_gesture_drp_ros gesture_recognition.launch.py
 sleep 5
 
 # ---- Node exited - switch to done LED ----
-led_done
 echo "[INFO] Hand gesture node exited."
