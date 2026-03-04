@@ -99,6 +99,21 @@ WORD_CANCEL    = "cancel"
 WORD_DROP      = "drop"
 WORD_GO_HOME   = "go home"  # Acts as both stop and home
 
+# Valid voice commands whitelist (prevents misrecognition triggering unwanted actions)
+VALID_COMMANDS = {
+    "go home",
+    "start", 
+    "cancel",
+    "drop",
+    "pick solder wire",
+    "pick tape",
+    "pick flux",
+    "pick connector",
+    "pick tweezer",
+    "pick plier",
+    "pick cutter"
+}
+
 # Voice command mappings (user says "pick X" for each object)
 VOICE_COMMANDS = {
     "pick solder wire": "solder_wire",
@@ -278,6 +293,9 @@ class SpotiQCoordinator(Node):
         self._cli_stop_grip  = self.create_client(Call,          "/ufactory/stop_lite6_gripper",   callback_group=self._srv_cbg)
 
         self.create_timer(1.0, self._broadcast_cb, callback_group=self._sub_cbg)
+
+        # Ensure voice is UNMUTED at startup - voice always active
+        self._mute_voice(False)
 
         self.get_logger().info(f"SpotiQ Coordinator starting. Targets: {TARGET_CLASSES}")
 
@@ -520,8 +538,7 @@ class SpotiQCoordinator(Node):
             return
             
         self._info(f"Voice: '{word}' (will dispatch)")
-        pub = String(); pub.data = word
-        self._pub_cmd.publish(pub)
+        # Publish to dashboard
         self._info(f"_voice_cb: spawning dispatch thread for '{word}'")
         threading.Thread(target=self._dispatch, args=(word,), daemon=True).start()
         self._info(f"_voice_cb: dispatch thread spawned for '{word}'")
@@ -784,7 +801,7 @@ class SpotiQCoordinator(Node):
         
         with self._lock:
             self._busy = True
-        self._mute_voice(True)
+        # DISABLED: self._mute_voice(True)  # Voice always active
         
         try:
             self._info("DEBUG MODE: Starting initialization sequence...")
@@ -855,7 +872,7 @@ class SpotiQCoordinator(Node):
             self._err(f"DEBUG startup failed: {e}\n{traceback.format_exc()}")
             self._set_state(self.ERROR)
         finally:
-            self._mute_voice(False)
+            # DISABLED: self._mute_voice(False)  # Voice always active
             with self._lock:
                 self._busy = False
 
@@ -864,7 +881,7 @@ class SpotiQCoordinator(Node):
 
         with self._lock:
             self._busy = True
-        self._mute_voice(True)
+        # DISABLED: self._mute_voice(True)  # Voice always active
         try:
             self._set_state(self.INIT)
 
@@ -899,7 +916,7 @@ class SpotiQCoordinator(Node):
             self._err(f"Startup failed: {e}\n{traceback.format_exc()}")
             self._set_state(self.ERROR)
         finally:
-            self._mute_voice(False)
+            # DISABLED: self._mute_voice(False)  # Voice always active
             with self._lock:
                 self._busy = False
 
@@ -917,26 +934,42 @@ class SpotiQCoordinator(Node):
     def _dispatch(self, word: str):
         self._info(f"DISPATCH received: '{word}' (busy={self._busy}, state={self._state})")
         
-        # GO HOME — always handled (voice/GUI only, not gesture)
-        # Voice: "go home" or "home"
-        if word == WORD_GO_HOME or word == "home":
-            self._active_target = None
-            self._waiting_for_drop = False
-            self._stop_req = True  # Signal to stop current operation
-            if not self._busy:
-                # Call directly, not in thread, so busy flag is properly managed
-                self._action_go_home()
-            else:
-                self._info("HOME requested - will stop current operation and return home")
-            return
-
-        # CANCEL — clear target even while busy searching (search loop checks this)
+        # CANCEL — only works during SEARCH (READY state with active target)
+        # Does NOT work during movement (PICKING state)
         if word == WORD_CANCEL:
+            if self._state != self.READY:
+                self._info(f"CANCEL rejected - not searching (state: {self._state})")
+                return
+            
             if self._active_target:
-                self._info(f"Target '{self._active_target}' cancelled.")
+                self._info(f"CANCEL: Target '{self._active_target}' cancelled. Search stopped.")
+                pub = String(); pub.data = word
+                self._pub_cmd.publish(pub)
                 self._active_target = None
             else:
-                self._info("Cancel: no active target.")
+                self._info("CANCEL: No active target.")
+                pub = String(); pub.data = word
+                self._pub_cmd.publish(pub)
+            return
+        
+        # GO HOME — only allowed from READY state when NOT busy
+        # Must use "cancel" first if operation in progress
+        if word == WORD_GO_HOME:
+            if self._state != self.READY:
+                self._info(f"GO HOME rejected - must be in READY state (currently {self._state}). Use 'cancel' first.")
+                return
+            
+            if self._busy:
+                self._info("GO HOME rejected - busy. Use 'cancel' first, then 'go home'.")
+                return
+            
+            # OK - in READY and not busy
+            self._active_target = None
+            self._waiting_for_drop = False
+            # Publish go home BEFORE action (so it shows immediately)
+            pub = String(); pub.data = word
+            self._pub_cmd.publish(pub)
+            self._action_go_home()
             return
         
         # DROP — handle when waiting at hand drop position (works even with voice muted)
@@ -945,6 +978,8 @@ class SpotiQCoordinator(Node):
                 # Just clear the flag - _action_pick will handle the actual drop
                 self._waiting_for_drop = False
                 self._info("Drop command acknowledged")
+                pub = String(); pub.data = word
+                self._pub_cmd.publish(pub)
             else:
                 self._info("Not waiting for drop command")
             return
@@ -964,20 +999,23 @@ class SpotiQCoordinator(Node):
                     return
                 self._busy = True
             
-            self._mute_voice(True)
+            # Voice muting handled inside _action_pick (unmuted during search)
             try:
                 if self._state == self.READY:
                     # Lock to this target
                     if self._active_target != target_obj:
                         self._info(f"Target locked: '{target_obj}'. Attempting pick...")
                         self._active_target = target_obj
+                        # Publish first pick command to dashboard
+                        pub = String(); pub.data = word
+                        self._pub_cmd.publish(pub)
                     else:
                         self._info(f"Pick attempt for locked target '{target_obj}'...")
                     self._action_pick()
                 else:
                     self._info(f"'{word}' ignored in state {self._state}")
             finally:
-                self._mute_voice(False)
+                # DISABLED: self._mute_voice(False)  # Voice always active
                 with self._lock:
                     self._busy = False
             return
@@ -990,76 +1028,80 @@ class SpotiQCoordinator(Node):
                 return
             self._busy = True
 
-        self._mute_voice(True)
+        # DISABLED: self._mute_voice(True)  # Voice always active
         try:
             if word == WORD_START:
                 if self._state == self.WAITING_START:
                     self._info(f"Executing _action_start()...")
+                    # Publish start BEFORE action (so it shows immediately)
+                    pub = String(); pub.data = word
+                    self._pub_cmd.publish(pub)
                     self._action_start()
                 else:
                     self._info(f"'start' command received but state is {self._state}, not WAITING_START")
             else:
                 self._info(f"'{word}' ignored in state {self._state}")
         finally:
-            self._mute_voice(False)
+            # DISABLED: self._mute_voice(False)  # Voice always active
             with self._lock:
                 self._busy = False
 
     # ── Actions ───────────────────────────────────────────────────────────────
 
     def _action_go_home(self):
-        """Move to HOME position using move_gohome service - acts as stop+home"""
-        self._info("HOME — stopping current operation and returning to home...")
+        """Move to HOME position [95, 0, 153, -3.14, 0, 0] using MoveCartesian"""
+        self._info("HOME — moving to home position [95, 0, 153]...")
         
         # Clear any active operations
         self._active_target = None
         self._waiting_for_drop = False
-        self._stop_req = False  # Clear the flag we just processed
+        self._stop_req = False
         
         # Take control
         with self._lock:
             self._busy = True
-        self._mute_voice(True)
+        # DISABLED: self._mute_voice(True)  # Voice always active
         
         try:
             self._set_state(self.INIT)
             self._arm_enable()
             
-            # Use move_gohome service
-            from xarm_msgs.srv import MoveHome
-            req = MoveHome.Request()
-            req.speed = 0.35  # rad/s
-            req.acc = 10.0    # rad/s²
+            # Use MoveCartesian service to go to [95, 0, 153, -3.14, 0, 0]
+            from xarm_msgs.srv import MoveCartesian
+            req = MoveCartesian.Request()
+            req.pose = [95.0, 0.0, 153.0, -3.14, 0.0, 0.0]
+            req.speed = 50.0    # mm/s
+            req.acc = 500.0     # mm/s²
+            req.mvtime = 0.0
             
-            if not self._cli_go_home.wait_for_service(timeout_sec=2.0):
-                self._err("move_gohome service not available")
+            if not self._cli_pos.wait_for_service(timeout_sec=2.0):
+                self._err("set_position service not available")
                 self._set_state(self.ERROR)
                 return
             
-            future = self._cli_go_home.call_async(req)
+            future = self._cli_pos.call_async(req)
             
-            # Wait for service response (don't use spin_until_future_complete from daemon thread!)
+            # Wait for service response
             timeout = 15.0
             start_time = time.time()
             while not future.done() and (time.time() - start_time) < timeout:
                 time.sleep(0.1)
             
             if not future.done():
-                self._err("move_gohome service timeout")
+                self._err("set_position service timeout")
                 self._set_state(self.ERROR)
                 return
             
             result = future.result()
             if result is None or result.ret != 0:
-                self._err(f"move_gohome service failed: ret={result.ret if result else 'None'}")
+                self._err(f"set_position service failed: ret={result.ret if result else 'None'}")
                 self._set_state(self.ERROR)
                 return
             
-            self._info("move_gohome service accepted, waiting for robot to reach home position...")
+            self._info("Moving to home position, waiting for robot to arrive...")
             
-            # Wait for robot to actually reach home position
-            # Home position is approximately [115, 0, 150] based on POSE_HOME
-            home_target = [115.0, 0.0, 150.0]
+            # Wait for robot to reach home position [95, 0, 153]
+            home_target = [95.0, 0.0, 153.0]
             deadline = time.time() + 10.0  # 10 second timeout
             
             while time.time() < deadline:
@@ -1089,7 +1131,7 @@ class SpotiQCoordinator(Node):
             self._err(f"Go home failed: {e}")
             self._set_state(self.ERROR)
         finally:
-            self._mute_voice(False)
+            # DISABLED: self._mute_voice(False)  # Voice always active
             with self._lock:
                 self._busy = False
             self._info(f"Go home complete. Final state: {self._state}, busy: {self._busy}, voice muted: False")
@@ -1149,7 +1191,7 @@ class SpotiQCoordinator(Node):
         self._info(f"Searching for '{tgt}'... Say 'cancel' to stop.")
         
         # UNMUTE voice during search so user can cancel
-        self._mute_voice(False)
+        # DISABLED: self._mute_voice(False)  # Voice always active
         
         _search_iter = 0
 
@@ -1183,7 +1225,7 @@ class SpotiQCoordinator(Node):
 
         # ── Object found — execute pick sequence ──────────────────────────────
         # RE-MUTE voice now that we're executing the pick (user can still cancel via stop_req)
-        self._mute_voice(True)
+        # DISABLED: self._mute_voice(True)  # Voice always active
         
         box = max(candidates, key=lambda b: b.probability)
         cx = (box.xmin + box.xmax) / 2.0
@@ -1285,7 +1327,7 @@ class SpotiQCoordinator(Node):
                 return self._abort()
             
             # IMPORTANT: Unmute voice so user can say "drop"
-            self._mute_voice(False)
+            # DISABLED: self._mute_voice(False)  # Voice always active
             
             # Set flag and wait for "drop" voice command
             self._waiting_for_drop = True
@@ -1295,7 +1337,7 @@ class SpotiQCoordinator(Node):
             while self._waiting_for_drop:
                 if self._stop_req:
                     self._waiting_for_drop = False
-                    self._mute_voice(True)  # Re-mute before aborting
+                    # DISABLED: self._mute_voice(True)  # Re-mute before aborting  # Voice always active
                     return self._abort()
                 time.sleep(0.5)
             
@@ -1315,7 +1357,7 @@ class SpotiQCoordinator(Node):
             self._info("Gripper stopped")
             
             # Re-mute voice before movement
-            self._mute_voice(True)
+            # DISABLED: self._mute_voice(True)  # Voice always active
             
             # Return to SCAN position
             if not step("Return to transit", self._move_to, ret_swing, self._movement_speed, ACC, 10.0):
@@ -1363,10 +1405,21 @@ class SpotiQCoordinator(Node):
 
 
     def _abort(self):
-        self._info("Sequence aborted — returning to HOME")
+        self._info("Sequence aborted — returning to SCAN position")
         self._active_target = None
         self._waiting_for_drop = False  # Clear waiting flag if aborting
-        self._action_go_home()
+        
+        # Try to return to SCAN instead of HOME
+        # Use move_to with generous timeout
+        try:
+            ret_swing = [POSE_TRANSIT_X, -300.0, POSE_TRANSIT_Z, -3.14, 0.0, 0.0]
+            self._move_to(ret_swing, self._movement_speed, ACC, timeout=10.0)
+            self._move_to(POSE_SCAN, self._movement_speed, ACC, timeout=10.0)
+            self._set_state(self.READY)
+            self._info("Abort recovery: Returned to SCAN position")
+        except Exception as e:
+            self._err(f"Abort recovery failed: {e}")
+            self._set_state(self.ERROR)
 
 
 # ── Entry point ────────────────────────────────────────────────────────────────
