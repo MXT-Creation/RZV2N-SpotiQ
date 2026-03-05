@@ -209,6 +209,18 @@
 			status = "disabled";
 		};
 	};
+	
+	vpcie3v3: regulator-vpcie3v3 {
+	        compatible = "regulator-fixed";
+	        regulator-name = "vpcie3v3";
+	        regulator-min-microvolt = <3300000>;
+	        regulator-max-microvolt = <3300000>;
+
+	        gpios = <&pinctrl RZG2L_GPIO(0, 0) GPIO_ACTIVE_HIGH>;  /* PWR_EN */
+	        enable-active-high;
+	        regulator-boot-on;
+	        regulator-always-on;
+	};
 };
 
 &du {
@@ -680,6 +692,7 @@
 	dma-ranges = <0x42000000 0 0x40000000 0 0x40000000 0x2 0x00000000>;
 
 	status = "okay";
+	vpcie-supply = <&vpcie3v3>;
 };
 
 &sci0 {
